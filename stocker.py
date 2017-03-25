@@ -15,6 +15,12 @@ from firebase import firebase
 import time
 import json
 
+#
+#
+#
+# GLOBAL DECLARATIONS
+#
+
 tlock = threading.Lock()
 firebase = firebase.FirebaseApplication('https://public-eye-e4928.firebaseio.com/')
 
@@ -36,6 +42,12 @@ total_entries = []
 
 debugger = False 
 
+#
+#
+#
+# CLASS DECLARATIONS
+#
+#
 class bcolors:
 	""" 
 	used to style the output strings printed to the console
@@ -55,6 +67,9 @@ class errorCodes:
 	ERROR_NONEXISTENT = -2
 	ERROR_NEWSYMBOL = -3
 	ERROR_NOURLS = -4
+	ERROR_BADURL = -5
+	ERROR_REPEATURL = -6
+	ERROR_BADDOMAIN = -7
 
 class WebNode: 
 
@@ -75,6 +90,15 @@ class WebNode:
 		self.date = date 
 		self.title = title
 
+global rando
+rando = 0
+
+#
+#
+#
+# DATA AGGREGATION AND PARSING FUNCTIONS
+#
+#
 def build_queries(companies, news_sources, extra_params):
 	"""
 	takes in an array of companies, news sources and extra parameters and
@@ -163,57 +187,74 @@ def get_info(webNode, depth, max_depth):
 	"""
 	global link_num
 	global total_urls
+	global rando
 
 	links = webNode.url
 	source = webNode.source
 	company = webNode.company
 	date = webNode.date
-
+	traverse_sublinks = False
+	print "length of links is " + str(len(links))
 	for url in links:
-		if link_num > 10:
-			continue
+		# if link_num > 5:
+		# 	return
 		link_num += 1
 		if debugger:
 			tlock.acquire()
 			print bcolors.BOLD + "-------------- ..... NEW LINK || TRYING LINK NUMBER : " + str(link_num) + " ..... ----------------" + bcolors.ENDC
 			link_num += 1
 			tlock.release()
-				
-		if(url[0:4] != "http") or url[len(url) - 3:] == "jpg":
-			print "\n" + bcolors.FAIL + "URL is :" + url + bcolors.ENDC
-			print bcolors.FAIL + "Bad URL continuing to the next one" + bcolors.ENDC + "\n"
-			continue
-
-		if url in total_urls:
-			print "\n" + bcolors.FAIL + "URL is : " + url + bcolors.ENDC
-			print bcolors.FAIL + "Already parsed -- skipping to the next one" + bcolors.ENDC + "\n"
-			continue
-		# domain = 
+			
+		if check_url(url) != errorCodes.ERROR_NOERROR:
+			return errorCodes.ERROR_BADURL
 
 		total_urls.append(url)
 		req = urllib2.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
 
 		try:
+			#OPEN PAGE AND GET THE HTML
 			page = urllib2.urlopen(req)
-			soup = BeautifulSoup(page.read().decode('utf-8', 'ignore'), "html.parser") #get all html info from webpage
-			article_title = soup.find_all("title") #used for printing title to user
-			sublinks_class = find_sublink_class(source)
+			soup = BeautifulSoup(page.read().decode('utf-8', 'ignore'), "html.parser") 
 
+			#USED FOR PARSING CORRECT INFORMATION
+			domain = find_domain(url)
+
+			if source.upper() != domain:
+				print bcolors.FAIL + "url from external source -- skipping" + bcolors.ENDC
+				return errorCodes.ERROR_BADDOMAIN
+
+			url_type = find_url_type(url)
+
+			#HOMEPAGE == TRUE, SO PARSE EMBEDDED LINKS W/O PARSING HOMEPAGE
+			if find_homepage_url(domain) == url_type:
+				traverse_sublinks = True
+				rando += 1
+
+			#GET THE TITLE FOR DISPLAY PURPOSES
+			article_title = soup.find_all("title") 
+			article_title = title_formatter(article_title)
+			
+			#GATHER ALL SUBLINKS IN CASE WE NEED TO TRAVERSE FURTHER 
+			sublinks_class = find_sublink_class(source)
 			sublinks = soup.find_all(attrs={'class' : sublinks_class})
 			sublinks = sublink_parser(sublinks, source)
 
-			article_title = title_formatter(article_title)
-
+			#PRINTING TO THE CONSOLE 
 			tlock.acquire()
 			print "Scraping web for company : " + bcolors.HEADER + company.upper() + bcolors.ENDC
 			print "Currently parsing article : " + article_title + "\n" + "From source : "+ source 
 			print "URL is : " + url
 			print "Date posted : " + str(date)
 			print bcolors.OKGREEN + "HTTP Status of Request : " + str(page.getcode()) + "\n" + bcolors.ENDC
+			print domain
+			print url_type
+			print traverse_sublinks
 			tlock.release()
 
-			soup = unicode.join(u'\n',map(unicode,soup))
-			traverse_sublinks = parser(soup, webNode, max_depth)
+			#CONVERT HTML TO STRING FORMAT AND PARSE INFO
+			if traverse_sublinks == False:
+				soup = unicode.join(u'\n',map(unicode,soup))
+				traverse_sublinks = parser(soup, webNode, max_depth)
 
 		except (urllib2.HTTPError, urllib2.URLError) as e:
 			try:
@@ -238,6 +279,8 @@ def get_info(webNode, depth, max_depth):
 			   	t = threads[i]
 			   	t.join()
 
+		return errorCodes.ERROR_NOERROR
+
 def parser(html, webNode, max_depth):
 	"""
 	returns the sublinks embedded in the article and
@@ -246,12 +289,12 @@ def parser(html, webNode, max_depth):
 	"""
 	global total_sentiment
 	global total_entries
+	
+	parseChildren = False
+	export_html = ""
 
 	article_data = []
-	parseChildren = False
 
-
-	export_html = ""
 	pattern = re.compile(r'<p>.*?</p>') #find only the ptag 
 	data = pattern.findall(html)
 	article_data = article_data + data
@@ -301,6 +344,10 @@ def parser(html, webNode, max_depth):
 		total_entries.append(1)
 
 	webNode.sentiment = polarity
+	webNode.polarity = polarity
+	webNode.subjectivity = subjectivity
+	webNode.negative = negative
+	webNode.positive = positive
 	webNode.article_data = export_html
 
 	tlock.acquire()
@@ -309,11 +356,11 @@ def parser(html, webNode, max_depth):
 	print subjectivity
 	print negative
 	print positive 
-	# print article_data
+	print parseChildren
 	print "--------------**********-------------------"
 	tlock.release()
-	export_JSON_web(webNode)
 	
+	export_JSON_web(webNode)
 	return parseChildren
 
 def export_JSON_web(webNode):
@@ -336,10 +383,23 @@ def export_JSON_web(webNode):
 #
 #
 #
-#HELPER FUNCTIONS
+# HELPER FUNCTIONS
 #
 #
 #
+def check_url(url):
+	if(url[0:4] != "http") or url[len(url) - 3:] == "jpg":
+		print "\n" + bcolors.FAIL + "URL is :" + url + bcolors.ENDC
+		print bcolors.FAIL + "Bad URL continuing to the next one" + bcolors.ENDC + "\n"
+		return errorCodes.ERROR_BADURL
+
+	if url in total_urls:
+		print "\n" + bcolors.FAIL + "URL is : " + url + bcolors.ENDC
+		print bcolors.FAIL + "Already parsed -- skipping to the next one" + bcolors.ENDC + "\n"
+		return errorCodes.ERROR_REPEATURL
+
+	return errorCodes.ERROR_NOERROR
+
 def title_formatter(title_html):
 	"""
 	used to remove the surrounding html from the article titles
@@ -366,6 +426,26 @@ def date_formatter(date):
 		print date
 	return date_formatted
 
+def find_domain(url):
+	try:
+		pattern = re.compile(r'www.*?com')
+		domain_full = pattern.findall(url)[0]
+		domain = domain_full[4:len(domain_full)-4]
+		return domain.upper()
+	except:
+		print "domain is null"
+		print url
+		return 'NULL'
+
+def find_url_type(url):
+	try:
+		pattern = re.compile(r'com/.*?/')
+		url_type_full = pattern.findall(url)[0]
+		url_type = url_type_full[4:len(url_type_full)-1]
+		return url_type.upper()
+	except:
+		return 'NULL'
+
 def find_sublink_class(source):
 	"""
 	each of the finance websites company landing pages has different classes for related articles
@@ -381,6 +461,19 @@ def find_sublink_class(source):
 	except TypeError:
 		return 'unknown'
 
+def find_homepage_url(domain):
+	"""
+	each of the finance websites company landing pages has different classes for related articles
+	this function directs the program to the proper one
+	"""
+	try:
+		return {
+		'BLOOMBERG': 'QUOTE',
+		'SEEKINGALPHA': 'SYMBOL',
+		}[domain]
+	except:
+		return errorCodes.ERROR_NONEXISTENT
+
 def sublink_parser(sublinks, source):
 	sublink_info = []
 	if source == 'Bloomberg':
@@ -390,9 +483,10 @@ def sublink_parser(sublinks, source):
 			date = re.findall(r'datetime=.*?>',str(link))
 			date = date[0][10:len(date)-3]
 
-			new_source = re.findall(r'www.*?com', url)
-			new_source = new_source[0][4:len(new_source)-5]
-			sublink_info.append([url, date, new_source])
+			#APPLICABLE IF WE WANT TO ALLOW ALL DOMAINS
+			# new_source = re.findall(r'www.*?com', url)
+			# new_source = new_source[0][4:len(new_source)-5]
+			sublink_info.append([url, date, source])
 	if debugger:
 		tlock.acquire()
 		print sublink_info
@@ -400,6 +494,7 @@ def sublink_parser(sublinks, source):
 	return sublink_info
 
 def return_webNodesJSON():
+
 	return webNodesJSON
 
 def check_relevance(html, company):
@@ -434,6 +529,9 @@ def get_score_LM(html):
 	"""	
 	lm = ps.LM()
 	tokens = lm.tokenize(html)
+	tlock.acquire()
+	print "num tokens is: " + str(len(tokens))
+	tlock.release()
 	score = lm.get_score(tokens)
 	if debugger:
 		tlock.acquire()
@@ -480,6 +578,8 @@ def load_DB(symbol):
 	return errorCodes.ERROR_NOERROR
 
 
+
+
 #
 #
 #
@@ -496,14 +596,16 @@ def Main():
 	company = get_symbol(symbol)
 	news_sources = ["Bloomberg"]
 	extra_params = ["news"]
-	company = re.sub(r', Inc\.', '', company)
+	company = re.sub(r'Inc\.', '', company)
 	company = re.sub(r'Corporation', '', company)
 	company = [company]
 
-	rc = load_DB(symbol)
-	print rc
-	# queries = build_queries(company, news_sources, extra_params)
-	# web_scraper(queries, max_depth) 
+	# markit(symbol)
+
+	# rc = load_DB(symbol)
+	# print rc
+	queries = build_queries(company, news_sources, extra_params)
+	web_scraper(queries, max_depth) 
 	# #
 	# #
 	# # UPDATE DB
@@ -519,11 +621,13 @@ def Main():
 
 
 
-	# if total_entries > 0:
-	# 	print sum(total_sentiment)/len(total_entries)
-	# else:
-	# 	print "zero entries"
-	# print "Total entries w/ sentiment greater than 0: " + str(len(total_entries))
+	if len(total_entries) > 0:
+		print sum(total_sentiment)/len(total_entries)
+	else:
+		print "zero entries"
+	print "Total entries w/ sentiment greater than 0: " + str(len(total_entries))
+	print rando
+	print real_news
 
 if __name__ == "__main__":
 	Main()
