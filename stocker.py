@@ -20,20 +20,20 @@ import json
 #
 # GLOBAL DECLARATIONS
 #
-
 tlock = threading.Lock()
 firebase = firebase.FirebaseApplication('https://public-eye-e4928.firebaseio.com/')
 
 global total_urls
 total_urls = [] #to avoid repeats
+
 global parsed_urls
 parsed_urls = []
 
-global webNodesJSON
-webNodesJSON = []
+# global webNodesJSON
+# webNodesJSON = []
 
-
-global link_num #used for debugging 
+#used for debugging 
+global link_num 
 link_num = 1
 global total_sentiment 
 total_sentiment = []
@@ -99,6 +99,7 @@ rando = 0
 # DATA AGGREGATION AND PARSING FUNCTIONS
 #
 #
+
 def build_queries(companies, news_sources, extra_params):
 	"""
 	takes in an array of companies, news sources and extra parameters and
@@ -153,7 +154,7 @@ def web_scraper(queries, max_depth):
 		   	url = link.rstrip().replace("u'","")
 			url = link.rstrip().replace("'","")
 			links.append(url)
-		   	node = WebNode(company=queries[i][0], url=[url], source=queries[i][1], date=date)
+		   	node = WebNode(company=queries[i][0], url=url, source=queries[i][1], date=date)
 		   	thread_inputs.append(node)
 
 		if debugger:
@@ -169,18 +170,18 @@ def web_scraper(queries, max_depth):
 			print link  
 		print '--------------------------------------' + bcolors.ENDC		
 		i += 1
+	return thread_inputs
+	# threads = []
+	# for i in range(0, len(thread_inputs)):
+	#    	t = threading.Thread(target=get_info, args=(thread_inputs[i], 0, max_depth))
+	#    	threads.append(t)
+	#    	t.start()
 
-	threads = []
-	for i in range(0, len(thread_inputs)):
-	   	t = threading.Thread(target=get_info, args=(thread_inputs[i], 0, max_depth))
-	   	threads.append(t)
-	   	t.start()
+	# for i in range(0, len(threads)):
+	#    	t = threads[i]
+	#    	t.join()
 
-	for i in range(0, len(threads)):
-	   	t = threads[i]
-	   	t.join()
-
-def get_info(webNode, depth, max_depth):
+def get_info(webNode, result, index, depth, max_depth):
 	"""
 	parses the links and gathers all the sublinks as well as calls
 	other functions to gather the pertinent data and perform the sentiment analysis
@@ -194,92 +195,105 @@ def get_info(webNode, depth, max_depth):
 	company = webNode.company
 	date = webNode.date
 	traverse_sublinks = False
-	print "length of links is " + str(len(links))
-	for url in links:
+	# print "length of links is " + str(len(links))
+	# for url in links:
 		# if link_num > 5:
 		# 	return
+	link_num += 1
+	if debugger:
+		tlock.acquire()
+		print bcolors.BOLD + "-------------- ..... NEW LINK || TRYING LINK NUMBER : " + str(link_num) + " ..... ----------------" + bcolors.ENDC
 		link_num += 1
-		if debugger:
-			tlock.acquire()
-			print bcolors.BOLD + "-------------- ..... NEW LINK || TRYING LINK NUMBER : " + str(link_num) + " ..... ----------------" + bcolors.ENDC
-			link_num += 1
-			tlock.release()
-			
-		if check_url(url) != errorCodes.ERROR_NOERROR:
-			return errorCodes.ERROR_BADURL
+		tlock.release()
+		
+	if check_url(url) != errorCodes.ERROR_NOERROR:
+		return errorCodes.ERROR_BADURL
 
-		total_urls.append(url)
-		req = urllib2.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+	total_urls.append(url)
+	req = urllib2.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
 
+	try:
+		#OPEN PAGE AND GET THE HTML
+		page = urllib2.urlopen(req)
+		soup = BeautifulSoup(page.read().decode('utf-8', 'ignore'), "html.parser") 
+
+		#USED FOR PARSING CORRECT INFORMATION
+		domain = find_domain(url)
+
+		if source.upper() != domain:
+			print bcolors.FAIL + "url from external source -- skipping" + bcolors.ENDC
+			return errorCodes.ERROR_BADDOMAIN
+
+		url_type = find_url_type(url)
+
+		#HOMEPAGE == TRUE, SO PARSE EMBEDDED LINKS W/O PARSING HOMEPAGE
+		if find_homepage_url(domain) == url_type:
+			traverse_sublinks = True
+
+		#GET THE TITLE FOR DISPLAY PURPOSES
+		article_title = soup.find_all("title") 
+		article_title = title_formatter(article_title)
+		
+		#GATHER ALL SUBLINKS IN CASE WE NEED TO TRAVERSE FURTHER 
+		sublinks_class = find_sublink_class(source)
+		sublinks = soup.find_all(attrs={'class' : sublinks_class})
+		sublinks = sublink_parser(sublinks, source)
+
+		#PRINTING TO THE CONSOLE 
+		tlock.acquire()
+		print "Scraping web for company : " + bcolors.HEADER + company.upper() + bcolors.ENDC
+		print "Currently parsing article : " + article_title + "\n" + "From source : "+ source 
+		print "URL is : " + url
+		print "Date posted : " + str(date)
+		print bcolors.OKGREEN + "HTTP Status of Request : " + str(page.getcode()) + "\n" + bcolors.ENDC
+		print domain
+		print url_type
+		print traverse_sublinks
+		tlock.release()
+
+		
+		#CONVERT HTML TO STRING FORMAT AND PARSE INFO
+		returnNode = None 
+		if traverse_sublinks == False:
+			soup = unicode.join(u'\n',map(unicode,soup))
+			parser_result = parser(soup, webNode, max_depth)
+			traverse_sublinks = parser_result[0]
+			returnNode = parser_result[1]
+
+	#CATCH ALL EXPECTIONS 
+	except (urllib2.HTTPError, urllib2.URLError) as e:
 		try:
-			#OPEN PAGE AND GET THE HTML
-			page = urllib2.urlopen(req)
-			soup = BeautifulSoup(page.read().decode('utf-8', 'ignore'), "html.parser") 
-
-			#USED FOR PARSING CORRECT INFORMATION
-			domain = find_domain(url)
-
-			if source.upper() != domain:
-				print bcolors.FAIL + "url from external source -- skipping" + bcolors.ENDC
-				return errorCodes.ERROR_BADDOMAIN
-
-			url_type = find_url_type(url)
-
-			#HOMEPAGE == TRUE, SO PARSE EMBEDDED LINKS W/O PARSING HOMEPAGE
-			if find_homepage_url(domain) == url_type:
-				traverse_sublinks = True
-				rando += 1
-
-			#GET THE TITLE FOR DISPLAY PURPOSES
-			article_title = soup.find_all("title") 
-			article_title = title_formatter(article_title)
-			
-			#GATHER ALL SUBLINKS IN CASE WE NEED TO TRAVERSE FURTHER 
-			sublinks_class = find_sublink_class(source)
-			sublinks = soup.find_all(attrs={'class' : sublinks_class})
-			sublinks = sublink_parser(sublinks, source)
-
-			#PRINTING TO THE CONSOLE 
-			tlock.acquire()
-			print "Scraping web for company : " + bcolors.HEADER + company.upper() + bcolors.ENDC
-			print "Currently parsing article : " + article_title + "\n" + "From source : "+ source 
-			print "URL is : " + url
-			print "Date posted : " + str(date)
-			print bcolors.OKGREEN + "HTTP Status of Request : " + str(page.getcode()) + "\n" + bcolors.ENDC
-			print domain
-			print url_type
-			print traverse_sublinks
-			tlock.release()
-
-			#CONVERT HTML TO STRING FORMAT AND PARSE INFO
-			if traverse_sublinks == False:
-				soup = unicode.join(u'\n',map(unicode,soup))
-				traverse_sublinks = parser(soup, webNode, max_depth)
-
-		except (urllib2.HTTPError, urllib2.URLError) as e:
-			try:
-				print bcolors.FAIL + "Uh oh there was an HTTP error with opening this url: \n" + str(url)+ "\n" + "Error code " + str(e.code) + "\n" + bcolors.ENDC
-				continue
-			except AttributeError:
-				print bcolors.FAIL + "Uh oh there was an HTTP error with opening this url: \n" + str(url)+ "\n" + bcolors.ENDC
-				continue
-		except httplib.BadStatusLine:
-			print bcolors.FAIL + "\nUh oh we could not recognize the status code returned from the http request\n" + bcolors.ENDC
+			print bcolors.FAIL + "Uh oh there was an HTTP error with opening this url: \n" + str(url)+ "\n" + "Error code " + str(e.code) + "\n" + bcolors.ENDC
 			continue
+		except AttributeError:
+			print bcolors.FAIL + "Uh oh there was an HTTP error with opening this url: \n" + str(url)+ "\n" + bcolors.ENDC
+			continue
+	except httplib.BadStatusLine:
+		print bcolors.FAIL + "\nUh oh we could not recognize the status code returned from the http request\n" + bcolors.ENDC
+		continue
 
-		if traverse_sublinks and depth < max_depth:
-			threads = []
-			for i in range(0, len(sublinks)):
-				childNode = WebNode(url=[sublinks[i][0]], company=company, source=sublinks[i][2].upper(), date=date_formatter(sublinks[i][1]))
-				t = threading.Thread(target=get_info, args=(childNode, depth+1, max_depth))
-				threads.append(t)
-				t.start()
+	#IF IT IS A HOMEPAGE OR WE WANT TO SCRAPE MORE INFO THEN TRAVERSE SUBLINKS 
+	if traverse_sublinks and depth < max_depth:
+		threads = []
+		sublist = [None] * (len(sublinks)+1)
+		sublist[0] = returnNode 
+		for i in range(0, len(sublinks)):
+			childNode = WebNode(url=sublinks[i][0], company=company, source=sublinks[i][2].upper(), date=date_formatter(sublinks[i][1]))
+			t = threading.Thread(target=get_info, args=(childNode, sublist, i+1, depth+1, max_depth))
+			threads.append(t)
+			t.start()
 
-			for i in range(0, len(threads)):
-			   	t = threads[i]
-			   	t.join()
-
+		for i in range(0, len(threads)):
+		   	t = threads[i]
+		   	t.join()
+		#EMBEDD A SUBLIST OF WEBNODES AT INDEX i TO UNPACK LATER ON
+		result[index] = sublist
 		return errorCodes.ERROR_NOERROR
+
+	#UPDATE RESULT LIST AND RETURN NO ERROR	   	
+	result[index] = returnNode
+	return errorCodes.ERROR_NOERROR
+
 
 def parser(html, webNode, max_depth):
 	"""
@@ -307,7 +321,6 @@ def parser(html, webNode, max_depth):
 		article_data += data2
 	except:
 		pass	
-
 
 	clean_html = ""
 	replace_dict = {'<p>': ' ', '</p>': ' ', 
@@ -360,8 +373,68 @@ def parser(html, webNode, max_depth):
 	print "--------------**********-------------------"
 	tlock.release()
 	
-	export_JSON_web(webNode)
-	return parseChildren
+	# export_JSON_web(webNode)
+	return [parseChildren, webNode]
+
+def get_Stock_Data(ticker):
+	stock_price_url = "http://chartapi.finance.yahoo.com/instrument/1.0/"+ ticker +"/chartdata;type=quote;range=10y/csv"
+	req = urllib2.Request(stock_price_url, headers={'User-Agent': 'Mozilla/5.0'})
+	source_code = urllib2.urlopen(req).read()
+	dates = []
+	closep = []
+	highp = []
+	lowp = []
+	openp = []
+	volume = []
+	split_source = source_code.split('\n')
+
+	for line in split_source:
+		split_line = line.split(',')
+		if len(split_line) == 6:
+			if 'values' not in line and 'labels' not in line:
+				date_p = str(datetime.datetime.strptime(split_line[0], '%Y%m%d'))[:10]
+				year = date_p[0:4]
+				month = date_p[5:7]
+				day = date_p[8:10]
+				date_str = month + '/' + day + '/' + year 
+				dates.append(date_str)
+				closep.append(split_line[1])
+				highp.append(split_line[2])
+				lowp.append(split_line[3])
+				openp.append(split_line[4])
+				volume.append(split_line[5])
+
+	data = {
+		"dates": dates,
+		"closep": closep,
+		"highp": highp,
+		"lowp": lowp,
+		"openp": openp,
+		"volume": volume
+	}
+
+	return data
+
+#
+#
+#
+# DATA RETURN/EXPORT FUNCTIONS
+#
+#
+def jsonify_nodes(nodes):
+	json_nodes = []
+	for webNode in nodes:
+		data = {
+			"title" : webNode.title,
+			"company" : webNode.company.upper(),
+			"source" : webNode.source,
+			"date" : webNode.date,
+			"url" : webNode.url[0],
+			"article_data": webNode.article_data,
+			"sentiment": webNode.sentiment
+		}
+		json_nodes.append(data)	
+	return json_nodes
 
 def export_JSON_web(webNode):
 	global webNodesJSON
@@ -493,10 +566,6 @@ def sublink_parser(sublinks, source):
 		tlock.release()
 	return sublink_info
 
-def return_webNodesJSON():
-
-	return webNodesJSON
-
 def check_relevance(html, company):
 	"""
 	checks if article is relevant to the company the program is currently parsing for
@@ -512,6 +581,25 @@ def check_relevance(html, company):
 	else:
 		print bcolors.FAIL +"Article is relevant results "  + str(company_relevant) + " For company : " + company.upper() + bcolors.ENDC
 	return company_relevant
+
+def unpackNodeList(nodeList):
+	"""
+	Returns an unpacked list of nodes ready for JSON export 
+	"""
+	results_aggregated = []
+	for node in nodeList:
+		try:
+			if len(node) > 1:
+				for val in node:
+					results_aggregated.append(val)
+		#IF WE GET ATTRIBUTE ERROR, IT MEANS IT IS ONLY ONE NODE 
+		except AttributeError:
+			results_aggregated.append(node)
+		#IF WE GET HERE THEN WE HAVE A NONE TYPE AND DO NOT WANT TO ADD IT TO RESULTS
+		except TypeError:
+			pass
+
+	return results_aggregated
 
 def timing(f):
     def wrap(*args):
@@ -605,7 +693,34 @@ def Main():
 	# rc = load_DB(symbol)
 	# print rc
 	queries = build_queries(company, news_sources, extra_params)
-	web_scraper(queries, max_depth) 
+	thread_inputs = web_scraper(queries, max_depth) 
+	threads = []
+	results = [None] * len(thread_inputs)
+	for i in range(0, len(thread_inputs)):
+	   	t = threading.Thread(target=get_info, args=(thread_inputs[i], results, i, 0, max_depth))
+	   	threads.append(t)
+	   	t.start()
+
+	for i in range(0, len(threads)):
+	   	t = threads[i]
+	   	try:
+	   		t.join()
+	   	except:
+	   		continue
+
+
+	print "\n\n\n\n\n\n\n\n\n\n\n\n\n"
+
+	webNodes = unpackNodeList(results)
+
+	for r in webNodes:
+		try:
+			print r.url
+		except:
+			continue
+
+	webNodesJSON = jsonify_nodes(webNodes)
+
 	# #
 	# #
 	# # UPDATE DB
@@ -619,15 +734,11 @@ def Main():
 	# 	if result != total_links:
 	# 		print "Unable to update parsed_urls in firebase"
 
-
-
 	if len(total_entries) > 0:
 		print sum(total_sentiment)/len(total_entries)
 	else:
 		print "zero entries"
 	print "Total entries w/ sentiment greater than 0: " + str(len(total_entries))
-	print rando
-	print real_news
 
 if __name__ == "__main__":
 	Main()
