@@ -4,7 +4,7 @@ import urllib2
 from bs4 import BeautifulSoup
 import re
 import numpy as np
-import getPerception
+# import getPerception
 import httplib
 from dateutil.parser import parse as date_parser
 import requests
@@ -26,7 +26,7 @@ firebase = firebase.FirebaseApplication('https://public-eye-e4928.firebaseio.com
 global total_urls
 total_urls = [] #to avoid repeats
 
-global parsed_urls
+global parsed_urls #I THINK I CAN DELTE THIS GLOB VAR
 parsed_urls = []
 
 # global webNodesJSON
@@ -70,6 +70,7 @@ class errorCodes:
 	ERROR_BADURL = -5
 	ERROR_REPEATURL = -6
 	ERROR_BADDOMAIN = -7
+	ERROR_BADSTATUS = -8
 
 class WebNode: 
 
@@ -90,8 +91,6 @@ class WebNode:
 		self.date = date 
 		self.title = title
 
-global rando
-rando = 0
 
 #
 #
@@ -100,7 +99,7 @@ rando = 0
 #
 #
 
-def build_queries(companies, news_sources, extra_params):
+def build_queries(symbol, companies, news_sources, extra_params):
 	"""
 	takes in an array of companies, news sources and extra parameters and
 	builds a list of qeuries
@@ -110,6 +109,11 @@ def build_queries(companies, news_sources, extra_params):
 		for j,sources in enumerate(news_sources):
 			for k,params in enumerate(extra_params):
 				queries.append([companies[i], news_sources[j], extra_params[k]])
+
+	# for i,symbolin enumerate(symbols):
+	for j,sources in enumerate(news_sources):
+		for k,params in enumerate(extra_params):
+			queries.append([symbol, news_sources[j], extra_params[k]])
 
 	print("****************************")
 	print("QUEREIS (" + str(len(queries)) +") : ")
@@ -188,9 +192,8 @@ def get_info(webNode, result, index, depth, max_depth):
 	"""
 	global link_num
 	global total_urls
-	global rando
 
-	links = webNode.url
+	url = webNode.url
 	source = webNode.source
 	company = webNode.company
 	date = webNode.date
@@ -246,9 +249,9 @@ def get_info(webNode, result, index, depth, max_depth):
 		print "URL is : " + url
 		print "Date posted : " + str(date)
 		print bcolors.OKGREEN + "HTTP Status of Request : " + str(page.getcode()) + "\n" + bcolors.ENDC
-		print domain
-		print url_type
-		print traverse_sublinks
+		# print domain
+		# print url_type
+		# print traverse_sublinks
 		tlock.release()
 
 		
@@ -264,13 +267,13 @@ def get_info(webNode, result, index, depth, max_depth):
 	except (urllib2.HTTPError, urllib2.URLError) as e:
 		try:
 			print bcolors.FAIL + "Uh oh there was an HTTP error with opening this url: \n" + str(url)+ "\n" + "Error code " + str(e.code) + "\n" + bcolors.ENDC
-			continue
+			return errorCodes.ERROR_BADSTATUS
 		except AttributeError:
 			print bcolors.FAIL + "Uh oh there was an HTTP error with opening this url: \n" + str(url)+ "\n" + bcolors.ENDC
-			continue
+			return errorCodes.ERROR_BADSTATUS
 	except httplib.BadStatusLine:
 		print bcolors.FAIL + "\nUh oh we could not recognize the status code returned from the http request\n" + bcolors.ENDC
-		continue
+		return errorCodes.ERROR_BADSTATUS
 
 	#IF IT IS A HOMEPAGE OR WE WANT TO SCRAPE MORE INFO THEN TRAVERSE SUBLINKS 
 	if traverse_sublinks and depth < max_depth:
@@ -293,7 +296,6 @@ def get_info(webNode, result, index, depth, max_depth):
 	#UPDATE RESULT LIST AND RETURN NO ERROR	   	
 	result[index] = returnNode
 	return errorCodes.ERROR_NOERROR
-
 
 def parser(html, webNode, max_depth):
 	"""
@@ -424,18 +426,23 @@ def get_Stock_Data(ticker):
 def jsonify_nodes(nodes):
 	json_nodes = []
 	for webNode in nodes:
-		data = {
-			"title" : webNode.title,
-			"company" : webNode.company.upper(),
-			"source" : webNode.source,
-			"date" : webNode.date,
-			"url" : webNode.url[0],
-			"article_data": webNode.article_data,
-			"sentiment": webNode.sentiment
-		}
-		json_nodes.append(data)	
+		if type(webNode) == None:
+			continue
+		else:
+			data = {
+				"title" : webNode.title,
+				"company" : webNode.company.upper(),
+				"source" : webNode.source,
+				"date" : webNode.date,
+				"url" : webNode.url[0],
+				"article_data": webNode.article_data,
+				"sentiment": webNode.sentiment
+			}
+			json_nodes.append(data)	
 	return json_nodes
 
+
+#I THINK I CAN DELETE THIS FUNCTION
 def export_JSON_web(webNode):
 	global webNodesJSON
 	global parsed_urls
@@ -473,6 +480,12 @@ def check_url(url):
 
 	return errorCodes.ERROR_NOERROR
 
+def company_name_formatter(companyName):
+	companyName = re.sub(r'Inc\.', '', companyName)
+	companyName = re.sub(r'Corporation', '', companyName)
+	companyName = re.sub(r',', '', companyName)
+	return companyName
+
 def title_formatter(title_html):
 	"""
 	used to remove the surrounding html from the article titles
@@ -506,9 +519,16 @@ def find_domain(url):
 		domain = domain_full[4:len(domain_full)-4]
 		return domain.upper()
 	except:
-		print "domain is null"
-		print url
-		return 'NULL'
+		try:
+			pattern = re.compile(r'://.*?com')
+			domain_full = pattern.findall(url)[0]
+			domain = domain_full[3:len(domain_full)-4]
+			print domain
+			return domain.upper()
+		except:
+			print "domain is null"
+			print url
+			return 'NULL'
 
 def find_url_type(url):
 	try:
@@ -591,13 +611,15 @@ def unpackNodeList(nodeList):
 		try:
 			if len(node) > 1:
 				for val in node:
-					results_aggregated.append(val)
+					if val is not None:
+						results_aggregated.append(val)
 		#IF WE GET ATTRIBUTE ERROR, IT MEANS IT IS ONLY ONE NODE 
 		except AttributeError:
-			results_aggregated.append(node)
+			if node is not None:
+				results_aggregated.append(node)
 		#IF WE GET HERE THEN WE HAVE A NONE TYPE AND DO NOT WANT TO ADD IT TO RESULTS
 		except TypeError:
-			pass
+			continue
 
 	return results_aggregated
 
@@ -679,21 +701,23 @@ def Main():
 	"""
 	call the functions to create queries and run web scraper
 	"""
+	#LOAD AND DEVELOP QUERY INFORMATION
 	max_depth = 1
-	symbol = "AAPL"
-	company = get_symbol(symbol)
-	news_sources = ["Bloomberg"]
-	extra_params = ["news"]
-	company = re.sub(r'Inc\.', '', company)
-	company = re.sub(r'Corporation', '', company)
-	company = [company]
+	symbol = "TSLA"
+	companyName = get_symbol(symbol)
+	# news_sources = ["Bloomberg"]
+	news_sources = ["SeekingAlpha"]
+	extra_params = ["news", "investing", "finance"]
+	company = company_name_formatter(companyName)
 
 	# markit(symbol)
 
 	# rc = load_DB(symbol)
 	# print rc
-	queries = build_queries(company, news_sources, extra_params)
+	#RUN THE FUNCTIONS TO PARSE THE DATA
+	queries = build_queries(symbol, [company], news_sources, extra_params)
 	thread_inputs = web_scraper(queries, max_depth) 
+	#JOIN THE THREADS AND POOL THE DATA 
 	threads = []
 	results = [None] * len(thread_inputs)
 	for i in range(0, len(thread_inputs)):
@@ -709,7 +733,7 @@ def Main():
 	   		continue
 
 
-	print "\n\n\n\n\n\n\n\n\n\n\n\n\n"
+	print "\n\n\n\n\n\n\n"
 
 	webNodes = unpackNodeList(results)
 
@@ -719,6 +743,10 @@ def Main():
 		except:
 			continue
 
+	for r in webNodes:
+		print(type(r))
+
+	#TRANSLATE INFORMATION TO JSON FOR AJAX RESPONSE
 	webNodesJSON = jsonify_nodes(webNodes)
 
 	# #
@@ -734,6 +762,7 @@ def Main():
 	# 	if result != total_links:
 	# 		print "Unable to update parsed_urls in firebase"
 
+	#JUST USED FOR DEBUGGING -- PRINT OUT FINAL RESULTS 
 	if len(total_entries) > 0:
 		print sum(total_sentiment)/len(total_entries)
 	else:
