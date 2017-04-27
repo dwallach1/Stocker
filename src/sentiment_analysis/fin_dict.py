@@ -55,7 +55,7 @@
 #	**	Once we build a dictionary, what do we do for new (unseen) words? Ignore them? Add to the dictionary?
 #
 
-
+hot_words = ["bullish", ]
 
 # Store each word with its correlated weight 
 class word(): 
