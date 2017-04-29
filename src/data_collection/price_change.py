@@ -13,22 +13,24 @@
 #	returns price_change (as a float)
 #
 
-from datetime import datetime 
+from datetime import datetime, timedelta
 import urllib2
 import numpy as np
 
-
 debug = False
 
-
 def date_formatter(time_unix):
+	from pytz import timezone
 	'''
 	takes in a timestamp in Unix form
 	Format dates as %Y-%m-%d %H:%M:%S
 	returns a Date 
 	'''
-	return datetime.fromtimestamp(int(time_unix))	# if we want to make string --> .strftime('%Y-%m-%d %H:%M:%S')
-
+	date_UTC = datetime.fromtimestamp(int(time_unix))	#	dates come in Unix time and converted to local 
+	date1, date2 = datetime.now(timezone('US/Eastern')), datetime.now()
+	rdelta = date1.hour - date2.hour 					#	convert local time to EST (the timezone the data was recorded in)
+	return date_UTC + timedelta(hours=rdelta)			#	via yahoo API
+	#	final date varies by seconds on each variation -- changes between 9:30 and 9:31 -- due to fromtimestamp conversion
 
 def get_data(ticker):
 	'''
@@ -48,7 +50,9 @@ def get_data(ticker):
 		dates, closep, highp, lowp, openp, volume = np.loadtxt(stock_data, delimiter=',', unpack=True)
 
 	dates = [date_formatter(d) for d in dates] # convert dates from unix time to comparable format
-	print dates
+	for date in dates:
+		print date
+	# print dates
 	return dates, closep, highp, lowp, openp, volume
 
 
@@ -81,6 +85,9 @@ def price_change(ticker, time):
 	lower_boud = highp[time] - lowp[time]	# (type: float) e.g. price = 30.53 at T
 	upper_boud = highp[time+5] - lowp[time+5]	# (type: float) e.g. price = 31.25 at T+5 
 	return upper_boud - lower_boud 				# price_change (type: float)
+
+
+# get_data("UA")
 
 #
 #

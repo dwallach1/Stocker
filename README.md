@@ -1,34 +1,22 @@
 # About Stocker
-This is a web scraper I built.
-Its main purpose is to track financial data and news about companies; however, it can be used to gather the main words and
-sentences from any website.
+Stocker's purpose is to track financial data and news about companies with the purpose of developing an algorithm to help reduce
+the error term associated with predicting stock prices. This project is largely a research project because as I try to develop
+a machine learning algorithm to be used for (financial) sentiment analysis, I need to learn more about the correlation of articles and the changes in the associated stock prices. 
 
-The main file is stocker.py which builds google queries based on company names, news sources and extra key words.
-This is a useful application for getting all the relevant information about a company from the internet. From the data.JSON file, you can use that information how you please. 
+	* I added <b>stock_daemon.py</b> as a crontab process (running every weekday after the market closes) to track financial data about each stock listed on the NYSE
+	by saving daily stockprices by the minute for each stock and saving it to a local csv file. The data was gathered from 
+	the Yahoo Finance API. The purpose of this was to avoid having to pay for a service to gather this data. This data was used 
+	solely for the research phase.
+	* I then scraped the web using <b>datamine.py</b> to get articles on NYSE equities from credible sources and parsed the article bodies and use the timestamps of the article to get the stock price change from time T and T+5 (where T = publishing time of article). The stock price changes are retrieved from the files created from the crontab
+	* I then used this information to:
+		1. Run regressions to try and find statistical relavence
+		2. Build a neural network that represented a financial dictionary 
+		3. Test the accuracy of the dictionary against NLTK sentiment analysis and PySentiment 
 
-#Install
-Currently working on an npm package. For now clone the repository 
-		>> git clone https://github.com/dwallach1/stocker.git
-		>> python stocker.py 	#This will do all the data collection for the queries and write the data to
-								#a JSON file 
 
-#How to use
-In the main function at the bottom of the stocker.py file there are 3 arrays (companies, news_sources, extra_params) that can be used to construct google queries. It then goes to all through the top 8 google results and parses the urls and finds suburls. The order will be company + news_source + extra_param.
 
-		e.g. companies = ["under armour"]
-			 news_sources = ["bloomberg, marketwatch"]
-			 extra_params = ["news"]
-			 
-		These inputs will build the following queries:
+# Dependencies
+<i>Stocker was developed on Python 2.7</i>
+	* BeautifulSoup
+	* Tensorflow (for the neural network)
 
-			"under armour" + "bloomberg" + "news" >> google >> "under armour bloomberg news"
-			"under armour" + "marketwatch" + "news" >> google >> "under armour marketwatch news"
-
-The number of queries run is len(tickers) * len(news_sources) * len(extra_params). Make sure that the queries are built in array format and each portion is its own index. By default the max_depth is set to 0, but you can change it to whatever you wish. When max_depth > 0, all the sublinks embedded in the paragraphs of the article are then also parsed. For this to work efficiently, make sure that the company name you search is the actual name of the company. This is because the program does not parse articles where the company name from the query is not found in the HTML. This is to ensure we do not parse and gather irrelavent data. 
-
-What this does is goes through and finds all the paragraphs written on the pages returned from the orginal google queries and thenuses the natural language toolkit to parse each word and sentence. You can then enable the program to create JSON objects that are written to the data.JSON file by changing the boolean variable write_json in the file getPerception.py. 
-
-You can also enable the program to create an array of tuples of each word and their assocaitave count by changing the boolean variable word_counter at the top of the getPerception.py. Then in wordCounter.py, if you set the export_CSV variable to true, these tuples will be written to a csv file. For this to work, you need to make an empty csv file in your directory called word_count.csv. If you wish to change the name, just update the code in the function csv_export of wordCounter.py. 
-
-#Dependencies
-I used BeautifulSoup for getting the raw html data from the web requests and effeciently parse the data for the specific information I thought to be pertinent. This program uses the natural language tool kit (nltk) for efficient word and sentence parsing. It uses pysentitment to access its Harvard IV-4 and Loughran and McDonald Financial Sentiment Dictionaries which are used for sentiment analysis of the data gathered from the queries. 

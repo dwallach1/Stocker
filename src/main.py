@@ -4,7 +4,7 @@
 #
 #
 
-from data_collection import price_change as pc, stocker
+from data_collection import price_change as pc, datamine
 from sentiment_analysis import fin_dict, ID3
 
 
@@ -33,8 +33,10 @@ def gather_data():
 	NASDAQ_stocks = read_stocks('../static/NASDAQ_companylist.csv')
 
 	stocks = NYSE_stocks + NASDAQ_stocks #	6337 STOCKS!
-
+	optimized_sources = ["bloomberg", "seekingalpha"]
 	# build query for each stock + each optimized news source
+	# queries = datamine.build_queries(stocks, optimized_sources)
+	# urls = [get(url) for url in queries]
 
 
 
