@@ -1,17 +1,18 @@
-#
-#	PRICE CHANGE 
-#	
-#	-	Uses Yahoo Finace API to get stock prices 
-#
-#	When Stocker's web scraper (main function) finds an article pertaining to a stock, it triggers get_data() 
-#	with the associated time 
-#	Takes in a stock ticker (e.g. AAPL), a date and a time and finds the change from the preceeding 5 minutes and the 
-#	ensuing 3 minutes after the given time.
-#
-#			 price_change = price(T + 5 min) - price(T - 5 min)
-#
-#	returns price_change (as a float)
-#
+"""
+PRICE CHANGE 
+Author: David Wallach	
+
+-	Python module that uses Yahoo Finace API to get stock prices 
+
+When Stocker's web scraper (main function) finds an article pertaining to a stock, it triggers get_data() 
+with the associated time 
+Takes in a stock ticker (e.g. AAPL), a date and a time and finds the change from the preceeding 5 minutes and the 
+ensuing 3 minutes after the given time.
+
+		 price_change = price(T + interval(min)) - price(T)
+
+returns price_change (as a float)
+"""
 
 from datetime import datetime, timedelta
 import urllib2
@@ -38,21 +39,17 @@ def get_data(ticker):
 	given date
 	returns an array of prices and associated times  
 	'''
-	r = "1d"
-	url = "https://chartapi.finance.yahoo.com/instrument/1.0/"+ticker+"/chartdata;type=quote;range="+r+"/csv"
+	url = "https://chartapi.finance.yahoo.com/instrument/1.0/"+ticker+"/chartdata;type=quote;range=1d/csv"
 	req = urllib2.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
 	source_code = urllib2.urlopen(req).read()
 	split_source = source_code.split('\n')
-	headers = split_source[:17] #	TEST TO SEE IF THIS IS ALWAYS THE CASE 
+	headers = split_source[:17] #	TEST TO SEE IF THIS IS ALWAYS THE CASE || maybe get the sector and such information?
 	stock_data = split_source[17:]
 
 	for line in stock_data:
 		dates, closep, highp, lowp, openp, volume = np.loadtxt(stock_data, delimiter=',', unpack=True)
 
 	dates = [date_formatter(d) for d in dates] # convert dates from unix time to comparable format
-	for date in dates:
-		print date
-	# print dates
 	return dates, closep, highp, lowp, openp, volume
 
 
@@ -67,11 +64,11 @@ def find_index(dates, time):
 			return i
 	return -1
 
-def price_change(ticker, time):
+def price_change(ticker, time, interval):
 	'''
 	Ticker: e.g. UA or AAPL
 	Time: Datetime(%Y-%m-%d %H:%M:%S)
-	given stock prices for a day, find the price change in the interval (time T, time T + 5 mins)
+	given stock prices for a day, find the price change in the interval (time T, time T + interval mins)
 	returns a float if properly executed
 	returns None if error
 	'''
@@ -83,11 +80,9 @@ def price_change(ticker, time):
 		return None
 
 	lower_boud = highp[time] - lowp[time]	# (type: float) e.g. price = 30.53 at T
-	upper_boud = highp[time+5] - lowp[time+5]	# (type: float) e.g. price = 31.25 at T+5 
+	upper_boud = highp[time+interval] - lowp[time+interval]	# (type: float) e.g. price = 31.25 at T+5 
 	return upper_boud - lower_boud 				# price_change (type: float)
 
-
-# get_data("UA")
 
 #
 #

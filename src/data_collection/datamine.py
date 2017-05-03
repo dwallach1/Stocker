@@ -1,10 +1,14 @@
-#
-#	DATAMINE  
-# 	Written by David Wallach
-# 
-#	
-#
-#
+"""
+DATAMINE
+Author: David Wallach
+
+- Uses BeautifulSoup for scraping the data from URLs
+
+This Python module has several purposes oriented around mining data from the web.
+The functionality is comprised of gathering urls from google quereis and then getting the data from 
+those articles such as the article body and publishing date
+"""
+
 import urllib2, httplib, requests
 from bs4 import BeautifulSoup
 from datetime import datetime 
@@ -12,6 +16,7 @@ from urlparse import urlparse
 import time
 import re
 from price_change import price_change as pc
+import os
 
 
 class Node:
@@ -39,6 +44,13 @@ def check_url(url):
 		return 1
 	return -1
 
+def root_path(path):
+	while os.path.dirname(path) != '/':
+		path = os.path.dirname(path)
+	return path[1:]
+
+# url = "https://www.bloomberg.com/politics/articles/2017-04-09/melenchon-fillon-tap-momentum-in-quest-of-french-election-upset"
+# print root_path(urlparse(url).path)
 
 def find_date(soup):
 	'''
@@ -82,6 +94,23 @@ def find_date(soup):
 		return options[currID](date)
 	return None 
 
+def cname_formatter(cName):
+	replace_dict = {'Corporation': ' ', ',': ' ', 'Inc.': ' '} #	to improve query relavence 
+	robj = re.compile('|'.join(replace_dict.keys())) 
+	return robj.sub(lambda m: replace_dict[m.group(0)], cName) #	returns bare company name
+	
+
+def get_name(symbol):
+	"""
+	Convert the ticker to the associated company name
+	"""
+	url = "http://d.yimg.com/autoc.finance.yahoo.com/autoc?query={}&region=1&lang=en".format(symbol)
+	result = requests.get(url).json()
+	
+	for x in result['ResultSet']['Result']:
+		if x['symbol'] == symbol:
+			return x['name']
+
 def timing(f):
     def wrap(*args):
         time1 = time.time()
@@ -98,59 +127,26 @@ def timing(f):
 #
 #	--------------------------------------
 
-def parse_article(html):
+def parse_article(soup, domain):
 	'''
-	takes out the html tag and concatenates one the article from the soup 
-	variable 
+	takes in a BS4 object that represents an article embedded in HTML
+	returns the article body as a string 
+	Currently optimized for: Bloomberg, SeekingAlpha
 	'''
-	
+	p_offset = {
+		'BLOOMBERG': 8,
+		'DEFAULT':	 0,
+	}
 	export_html = ""
+	p_tags = soup.find_all('p')
+	pre_tags = soup.find_all('pre')
+	data = p_tags[p_offset[domain]:] + pre_tags
 
-	article_data = []
+	for i in data:
+		export_html += i.contents[0]
 
-	pattern = re.compile(r'<p>.*?</p>') #find only the ptag 
-	data = pattern.findall(html)
-	article_data = article_data + data
-	commentSoup = BeautifulSoup(html, "html.parser")
-	preTags = commentSoup.findAll('pre')
-	try:
-		data2 = preTags[0]
-		if debugger:
-			print data2
-		article_data += data2
-	except:
-		pass	
-
-	clean_html = ""
-	replace_dict = {'<p>': ' ', '</p>': ' ', 
-					'<strong>': '', '</strong>': ' ', 
-					'<a>': ' ','</a>': '',
-					'<em>': ' ', '</em>': ' ',
-					'<span>': ' ', '</span>': ' ',
-					'<meta>': ' ', '</meta>': ' ',
-					'&amp;apos;': ' '
-					} #html tags to remove
-
-	for data in article_data:
-		robj = re.compile('|'.join(replace_dict.keys())) 
-		clean_html = robj.sub(lambda m: replace_dict[m.group(0)], data) #removing the html tags e.g. <p> and </p>
-		clean_html = re.sub(r'<.*?>', ' ',clean_html) #remove all html tags 
-		clean_html = re.sub('[^A-Za-z0-9]+', ' ', clean_html, re.DOTALL) #get rid of all extraneous chars 
-
-		export_html += clean_html 
-	
+	# check_relavence(html)
 	return export_html
-
-
-def rss_parser(rss_url):
-	'''
-	some companies offer RSS feeds to their articles which provide faster and more reliable 
-	data -- best case is to use RSS feed instead 
-	'''
-	req = urllib2.Request('https://seekingalpha.com/api/sa/combined/UA.xml', headers={'User-Agent': 'Mozilla/5.0'})
-	page = urllib2.urlopen(req)
-	soup = BeautifulSoup(page.read(), "xml")
-	print soup.findAll('title')
 
 
 def _scrape_url(url):
@@ -162,31 +158,35 @@ def _scrape_url(url):
 
 	#	OPEN PAGE AND GET THE HTML
 	req = urllib2.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-	page = urllib2.urlopen(req)
+	try:
+		page = urllib2.urlopen(req)
+	except urllib2.HTTPError, urllib2.URLError:
+		return -1
 	soup = BeautifulSoup(page.read().decode('utf-8', 'ignore'), "html.parser")
 
 	#	PICK APART THE SOUP OBJECT
-	domain = urlparse(url).hostname.split('.')[1]
+	url_obj = urlparse(url)
+	domain = url_obj.hostname.split('.')[1]
+	root_path = root_path(url_obj.path)
 	title = find_date(soup)
 	date = find_date(soup)
-	# soup = unicode.join(u'\n',map(unicode,soup))
+	result = parse_article(soup, domain.upper())
 
-	#	FORMAT RESULT 
-	result = parse_article(soup)
 	if result < 0:
 		return result
 
 	# STORE ALL INFORMATION IN A NODE 
-	return Node(title, date, article)		#	if we got here, we have successfully parsed the article 
+	return None
+	# return Node(title, date, article)		#	if we got here, we have successfully parsed the article 
 
-@timing 
 def scrape_url(url):
 	'''
 	takes in a ticker and a url and returns the article body as a string 
 	as well as the associated change in stock price 
 	'''
 	result = _scrape_url(url)
-	options {						#	possible error conditions
+
+	options = {						#	possible error conditions
 		-1: "ERROR -- bad url",	
 	}
 
@@ -195,7 +195,58 @@ def scrape_url(url):
 
 	return result 					#	successful, return a Node object 
 
-scrape_url('https://www.bloomberg.com/press-releases/2017-04-13/under-armour-announces-nomination-of-jerri-l-devard-to-board-of-directors')
-scrape_url('https://www.bloomberg.com/news/articles/2017-02-10/now-under-armour-has-a-trump-problem-too')
-scrape_url('https://www.bloomberg.com/news/articles/2017-01-31/under-armour-admits-it-s-still-not-cool-enough')
+# scrape_url('https://www.bloomberg.com/press-releases/2017-04-13/under-armour-announces-nomination-of-jerri-l-devard-to-board-of-directors')
+# scrape_url('https://www.bloomberg.com/news/articles/2017-02-10/now-under-armour-has-a-trump-problem-too')
+# scrape_url('https://www.bloomberg.com/news/articles/2017-01-31/under-armour-admits-it-s-still-not-cool-enough')
 
+def _parse_google(query):
+	#html request and Beautiful Soup parser 
+	q = query.source + "+" + query.ticker + "+articles"
+	html = "https://www.google.co.in/search?site=&source=hp&q="+q+"&gws_rd=ssl"
+	req = urllib2.Request(html, headers={'User-Agent': 'Mozilla/5.0'})
+	try:
+		soup = BeautifulSoup(urllib2.urlopen(req).read(),"html.parser")
+	except (urllib2.HTTPError, urllib2.URLError) as e:
+		print "error ", e 
+		return []
+
+	#Re to find URLS
+	reg=re.compile(".*&sa=")
+
+	#get all web urls from google search result 
+	links = []
+	for item in soup.find_all(attrs={'class' : 'g'}):
+		link = (reg.match(item.a['href'][7:]).group())
+	   	link = link[:-4]
+	   	links.append(link)
+	return links
+
+
+
+def get_urls(queries):
+	'''
+	takes in a list of queries and returns a list of urls derived from the queries 
+	'''
+	total_links = []
+	for query in queries:
+		path = "/Users/david/Desktop/Stocker_Threading/static/logs/"+query.ticker
+		local_links = list()
+		if not os.path.isfile(path):
+			file_w = open(path, 'w')
+			print "writing new log file"
+		else:
+			file = open(path, 'r')
+			local_links = file.readlines()
+			local_links = [link.rstrip() for link in local_links]
+			file.close()
+			file_w = open(path, 'a')
+			print "appeneding to log file"
+
+		print "getting URLS for ", query.ticker
+		links_found = _parse_google(query)
+		links_new 	= [link for link in links_found if link not in local_links]
+		for link in links_new:
+			print "writing: ", link
+			file_w.write(link+'\n')
+		total_links += links_new
+	return total_links
