@@ -56,6 +56,14 @@ IDEAS
 **	Once we build a dictionary, what do we do for new (unseen) words? Ignore them? Add to the dictionary?
 """
 
+
+'''
+CREATE RNN 	-- tensorflow --> input: vec![article words] || output: vec[price_changes for stock]
+
+
+THIS CODE IS HOSTED ON QUONTOPIAN TO BE ABLE TO USE THEIR FINANCIAL STOCK HISTORYs
+'''
+
 hot_words = ["bullish", ... , "optimisitc"]
 
 # Store each word with its correlated weight 

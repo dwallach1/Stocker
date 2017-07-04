@@ -25,7 +25,7 @@ setup(
     # https://packaging.python.org/en/latest/single_source_version.html
     version='1.0.0',
 
-    description='A data miner for ',
+    description='A web scraper for financial articles',
     long_description=long_description,
 
     # The project's main homepage.
@@ -33,7 +33,7 @@ setup(
 
     # Author details
     author='David Wallach',
-    author_email='unknown',
+    author_email='Davidwallach2@gmail.c',
 
     # Choose your license
     license='MIT',
@@ -74,7 +74,7 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['peppercorn'],
+    install_requires=['bs4', 'numpy', ],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

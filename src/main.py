@@ -1,37 +1,20 @@
+from __future__ import print_function
 """
-MAIN
+Main.py
 Author: David Wallach
+
+This function gathers all of the stock tickers and sources to call datamine.py to fill in the 
+data.csv file
 """
-
-
-from data_collection import price_change as pc, datamine
-from sentiment_analysis import fin_dict, ID3
 import urllib2, httplib, requests
-from bs4 import BeautifulSoup
 import re
-import csv
+from bs4 import BeautifulSoup
+import price_change as pc, datamine
+from datamine import *
+import time
+# from sentiment_analysis import fin_dict, ID3
 
 
-class Query:
-	def __init__(self, ticker, source, company):
-		self.ticker = ticker
-		self.source = source 
-		self.company = company
-
-	
-
-def read_stocks(path):
-	'''
-	reads a csv file at the given path and returns an array of the first column
-	excluding the first entry (ussually the header)
-	'''
-	f = open(path, 'rb')
-	stocks = []
-	reader = csv.reader(f)
-	for row in reader:
-	    stocks.append(row[0])
-	f.close()
-	return stocks[1:]
 
 def get_snp500():
     hdr = {'User-Agent': 'Mozilla/5.0'}
@@ -49,37 +32,47 @@ def get_snp500():
     return tickers
 
 
+def build_queries(tickers, sources):
+	queries = []
+	for t in tickers:
+		for s in sources:
+			q = t + '+' + s + '+' + 'stock+articles'
+			queries.append([t, s, q])
+	return queries
+
 def gather_data():
 	'''
 	gets articles from relavent news sources about each stock in the S&P500. 
 	Data is parsed and matched with associated stock price data to teach a neural network
 	to find the connection (if one exisits)
 	'''
-	stocks = get_snp500()
-	# stocks = stocks[]
-	stocks = ["AAPL", "GOOG", "GPRO", "TSLA"]
-	optimized_sources = ["Bloomberg", "Seekingalpha"]
-	queries = list()
+	# tickers = get_snp500()
+	# tickers += ["AAPL", "GOOG", "GPRO", "TSLA"]
+	# sources = ["Bloomberg", "Seekingalpha"]
+	# assert (len(tickers) > 500)
+	# logger.info('Creating %d nodes' % len(tickers))
+	
+	tickers = ["AAPL", "UA", "GOOG"]
+	sources = ["Bloomberg"]
+	queries = build_queries(tickers, sources)
+	total = len(queries)
+	print ('Creating %d workers' % len(tickers))
+	print ('Starting to build and write batches ...')
+	for i,q in enumerate(queries):
+		print("{:2.2%} Complete".format(float(i) / float(total)), end="\r")
+		worker = datamine.Worker(q[0], q[1], q[2])
+		worker.set_links()
+		worker.build_nodes()
+		worker.get_writer('../data/')
+		writer = worker.writer 
+		writer.write_nodes()
+		worker.update_links()
+	    
 
-	for stock in stocks:
-		for source in optimized_sources:
-			queries.append(Query(ticker=stock, source=source, company=datamine.get_name(stock)))
+	print("{:2.2%} Complete".format(1), end="\r")
+	print ('\nDone.')
 
-	urls = datamine.get_urls(queries)
-
-	# build query for each stock + each optimized news source
-	# queries = datamine.build_queries(stocks, optimized_sources)
-	# urls = [get(url) for url in queries]
-
-
-
+	
 if __name__ == "__main__":
-	"""
-	1. Call Stocker to build queries and scape the web
-	2. Stocker calls price_change to get associated change in price 
-	3. run regressions on data / test out different approaches
-	"""
 	gather_data()
-	# _parse_rss(Query(ticker="UA", source="Bloomberg", company=datamine.cname_formatter(datamine.get_name("UA"))))
-	#_parse_google(Query(ticker="UA", source="Bloomberg", company=datamine.cname_formatter(datamine.get_name("UA"))))
 	

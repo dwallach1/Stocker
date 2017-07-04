@@ -46,6 +46,9 @@ def get_data(ticker):
 	headers = split_source[:17] #	TEST TO SEE IF THIS IS ALWAYS THE CASE || maybe get the sector and such information?
 	stock_data = split_source[17:]
 
+	if len(split_source) < 18:
+		return None, None, None, None, None, None
+
 	for line in stock_data:
 		dates, closep, highp, lowp, openp, volume = np.loadtxt(stock_data, delimiter=',', unpack=True)
 

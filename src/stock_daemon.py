@@ -2,7 +2,7 @@
 STOCK DAEMON
 Author: David Wallach
 
-- Python module that uses Wikipedia to get the companies from the S&P500 and the get_data
+- Python module that uses Wikipedia to get the tickers from different stock exchanges and the get_data
 	function from price_change.py
 
 this program is meant to be run as a crontab process to download stock market 
@@ -13,11 +13,29 @@ Gathers ~7.7MB of data every run (per ~505 stocks)
 for 52 weeks in a year, running 5 days a week --> ~(52*5*7.7) = 2,002MB = 2.02GB 
 """
 
+
+
 import csv
 from bs4 import BeautifulSoup
 import urllib2, httplib, requests
 import numpy as np
 from price_change import get_data
+
+def get_nasdaq100():
+	url = 'https://en.wikipedia.org/wiki/NASDAQ-100'
+	page = urllib2.urlopen(url)
+	soup = BeautifulSoup(page.read())
+
+
+# def get_nasdaq():
+# 	#https://en.wikipedia.org/w/index.php?title=Category:Companies_listed_on_NASDAQ&pagefrom=Willis+Towers+Watson#mw-pages
+# 	#https://en.wikipedia.org/w/index.php?title=Category:Companies_listed_on_NASDAQ&pageuntil=Repligen#mw-pages
+
+# def get_nyse():
+	
+# 	url = 'https://en.wikipedia.org/wiki/Category:Companies_listed_on_the_New_York_Stock_Exchange'
+# 	page = urllib2.urlopen(url)
+# 	soup = BeautifulSoup(page.read())
 
 def get_snp500():
     hdr = {'User-Agent': 'Mozilla/5.0'}
@@ -41,7 +59,7 @@ def stringify(data):
 	return str(data)	#	if not a list, return a string of the value
 
 
-def update_stocks():
+def update_stocks(create=False,Path=None):
 	import os
 	from datetime import datetime
 
@@ -54,7 +72,8 @@ def update_stocks():
 	stocks = snp500_stocks + other_stocks
 
 	for stock in stocks:
-		path = '/Users/david/Desktop/Stocker_Threading/static/stock_history/'+stock+'.csv'
+		path = os.path.abspath(os.path.join(__file__ ,"../..")) + '/static/stock_history/' +stock+'.csv'
+		# path = '/Users/david/Desktop/Stocker_Threading/static/stock_history/'+stock+'.csv'
 		print "Getting data for: " + stock 			# step 1
 		dates, closep, highp, lowp, openp, volume = get_data(stock)
 		if dates is None:
