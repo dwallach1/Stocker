@@ -38,11 +38,11 @@ def gather_data():
     # tickers = get_snp500()
     # tickers += ["AAPL", "GOOG", "GPRO", "TSLA"]
     # sources = ["Bloomberg", "Seekingalpha"]
-    # assert (len(tickers) > 500)
     # logger.info('Creating %d nodes' % len(tickers))
     
     tickers = ["AAPL"]
     sources = ["Bloomberg"]
+    # sources = ["seekingalpha"]
     csv_path = '../data/examples.csv'
     json_path = '../data/links.json'
     dm = datamine.Miner(tickers, sources, csv_path, json_path)

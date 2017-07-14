@@ -10,14 +10,9 @@ The functionality is comprised of gathering urls from google quereis and then ge
 those articles such as the article body and publishing date
 """
 import os, sys, logging, json
-# import sys
-# import logging
-# import json
 import urllib2, httplib, request
 from urlparse import urlparse
-import time
-import csv
-import re
+import time, csv, re
 from bs4 import BeautifulSoup
 from nltk.tokenize import sent_tokenize, word_tokenize
 from datetime import datetime 
@@ -26,8 +21,7 @@ import dateutil.parser as dparser
 logger = logging.getLogger(__name__)
 
 class Node(object):
-	"""represents an entry in data.csv that will be used to train our neural network
-	"""
+	"""represents an entry in data.csv that will be used to train our neural network"""
 	def __init__(self, ticker, domain, url):
 		# self.query	= query		#
 		self.ticker = ticker 	# string
@@ -62,6 +56,7 @@ class Node(object):
 	#def set_prices(self):
 
 class Miner(object):
+	"""Miner class manages the work for mining data and writing it to a csv file"""
 	def __init__(self, tickers, sources, csv_path, json_path):
 		self.tickers = tickers
 		self.sources = sources
@@ -82,10 +77,10 @@ class Miner(object):
 		logger.info('Starting to build and write batches ...')
 		for i,q in enumerate(self.queries):			
 			worker = Worker(q[0], q[1], q[2])
+			worker.configure(self.json_path)
 			worker.work()	
-			self.write_csv(worker.nodes)
-			self.write_links(worker.links, worker.ticker)	
-		
+			# self.write_csv(worker.nodes)
+			self.write_json(worker.links, worker.ticker)	
 		print('\nDone.')
 
 	def write_csv(self, nodes):
@@ -97,37 +92,41 @@ class Miner(object):
 			writer = csv.DictWriter(f, fieldnames=fieldnames)
 			if write_mode == 'w':
 				writer.writeheader()
-			# for row in node_dict:
-			# 	print (row)
-			# 	writer.writerow(row)
 			writer.writerows(node_dict)
 
-	def write_links(self, links, ticker):
-		write_mode = 'r' if os.path.exists(self.json) else 'w' 
+	def write_json(self, links, ticker):
+		write_mode = 'r' if os.path.exists(self.json_path) else 'w' 
 		t = ticker.upper()
-		with open(self.json_path, write_mode) as _f:
-			data = json.load(_f)
+		with open(self.json_path, write_mode) as f:
+			data = json.load(f)
 		
 		# add links to json
 		if t in data.keys():
-			original = data[t] + '\n'
+			original = data[t] 
 			updated = original + links 
 			data.update({t : updated})
 		else:
 			data.update({t : links})
 
 		#write the updated json
-		with open(self.json_path, 'w') as _f:
-			json.dump(data, _f)
+		with open(self.json_path, 'w') as f:
+			json.dump(data, f, indent=4)
 
 
 class Worker(object):
+	"""contains the work of the program, filling in the node data so that it can be written to the csv file"""
 	def __init__(self, ticker, source, query):
-		self.ticker = ticker		# string
-		self.source = source		# string
-		self.query = query			# string
-		self.links = []				# array (string)
-		self.nodes = []				# array (Node())
+		self.ticker = ticker.upper()	# string
+		self.source = source			# string
+		self.query = query				# string
+		self.links = []					# array (string)
+		self.nodes = []					# array (Node())
+
+	def configure(self, json_path):
+		with open(json_path, 'r') as f:
+			data = json.load(f)
+		self.links = data[self.ticker] if self.ticker in data else []
+		logger.debug('configuring links with a length of {}'.format(len(self.links)))
 
 	def work(self):
 		self.set_links()
@@ -152,23 +151,11 @@ class Worker(object):
 			link = link[:-4]
 			links.append(link)
 
-		# Check which links are new 
-		p = '../data/links.json'
-		t = self.ticker.upper()
-		with open(p) as _f:
-			data = json.load(_f)
-		if t in data.keys():
-			new_links = [l for l in links if l not in data[t]]
-			self.links = new_links
-		else:
-			# we do not have any links for this ticker yet
-			self.links = links
-
+		self.links = list(filter(lambda link: link not in self.links, links))
 
 	def build_nodes(self):
 		for link in self.links:
 			node = scrape_link(link, self.ticker)	
-			# node.article = node.article.encode("utf-8")
 			if node != None:
 				node.set_sentences(node.article)
 				node.set_words(node.article)

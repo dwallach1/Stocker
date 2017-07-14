@@ -1,4 +1,4 @@
-# About Stocker
+# Stocker
 Stocker's purpose is to track financial data and news about companies with the purpose of developing an algorithm to help reduce
 the error term associated with predicting stock prices. This project is largely a research project because as I try to develop
 a machine learning algorithm to be used for (financial) sentiment analysis, I need to learn more about the correlation of articles and the changes in the associated stock prices. 
@@ -16,7 +16,32 @@ a machine learning algorithm to be used for (financial) sentiment analysis, I ne
 
 
 # Dependencies
-<i>Stocker was developed on Python 2.7</i> \n
-	* BeautifulSoup
-	* Tensorflow (for the neural network)
 
+- Python 2.7
+- BeautifulSoup4
+
+
+# Machine Learning Aspects
+
+_Handling Missing Attributes_
+I did not collect data that did not have all of the following:
+- ticker
+- url 
+- date
+This is because without this information, I would be unable to find the correlated stock prices and 
+the training example would be rendered useless. Due to this methodology, I did not have any examples with missing attributes in my dataset that I used to build my classifers. 
+
+
+# Code
+
+The purpose of the overall system is to gather data and use it as input to develop a classifier
+to model the data. To do this, I defined a Node struct that correlated to a training example for the input 
+to the classifier.
+
+```python
+Class Node:
+	def __init__(self, ticker, url, source, date, T-0=None, T-1=None, T-2=None, T-3=None):
+		self.ticker = ticker
+		self.url = url
+		self.source = source
+		self.date = date
