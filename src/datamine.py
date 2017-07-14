@@ -1,3 +1,4 @@
+from __future__ import print_function
 """
 datamine.py
 Author: David Wallach
@@ -8,9 +9,10 @@ This Python module has several purposes oriented around mining data from the web
 The functionality is comprised of gathering urls from google quereis and then getting the data from 
 those articles such as the article body and publishing date
 """
-import os
-import sys
-import json
+import os, sys, logging, json
+# import sys
+# import logging
+# import json
 import urllib2, httplib, request
 from urlparse import urlparse
 import time
@@ -21,7 +23,7 @@ from nltk.tokenize import sent_tokenize, word_tokenize
 from datetime import datetime 
 import dateutil.parser as dparser
 
-
+logger = logging.getLogger(__name__)
 
 class Node(object):
 	"""represents an entry in data.csv that will be used to train our neural network
@@ -45,44 +47,79 @@ class Node(object):
 		W = word_tokenize(article)
 		self.words = [w for w in W if len(w) > 1]
 
+	def dictify(self):
+		return {	'ticker': self.ticker,
+					'domain': self.domain,
+					'article': self.article,
+					'url': self.url,
+					'date': self.date,
+					'sentences': self.sentences,
+					'words': self.words,
+					'priceInit': self.price_init,
+					'priceT1': self.price_t1 
+				}
+
 	#def set_prices(self):
 
-class Writer(object):
-	"""used to write a list of nodes to the csv file 
-	"""
-	def __init__(self, nodes, dir_path):
-		self.nodes = nodes
-		print(self.nodes)
-		self.dir_path = dir_path
+class Miner(object):
+	def __init__(self, tickers, sources, csv_path, json_path):
+		self.tickers = tickers
+		self.sources = sources
+		self.csv_path = csv_path
+		self.json_path = json_path
+		self.queries = []
 
+	def build_queries(self):
+		for t in self.tickers:
+			for s in self.sources:
+				q = t + '+' + s + '+' + 'stock+articles'
+				self.queries.append([t, s, q])
+		logger.debug('built {} queries'.format(len(self.queries)))
 
-	def write_nodes(self):
-		_path = self.dir_path + 'nodes.csv'
-		if os.path.exists(_path):
-			append_write = 'a' # append if already exists
+	def mine(self):
+		total = len(self.queries)
+		logger.debug('Creating {} worker(s)'.format(total))
+		logger.info('Starting to build and write batches ...')
+		for i,q in enumerate(self.queries):			
+			worker = Worker(q[0], q[1], q[2])
+			worker.work()	
+			self.write_csv(worker.nodes)
+			self.write_links(worker.links, worker.ticker)	
+		
+		print('\nDone.')
+
+	def write_csv(self, nodes):
+		node_dict = list(map(lambda n: n.dictify(), list(filter(lambda n: n.date != None , nodes))))
+		write_mode = 'a' if os.path.exists(self.csv_path) else 'w'
+		with open(self.csv_path, write_mode) as f:
+			fieldnames = sorted(node_dict[0].keys()) # sort to ensure they are the same order every time
+			print (fieldnames)
+			writer = csv.DictWriter(f, fieldnames=fieldnames)
+			if write_mode == 'w':
+				writer.writeheader()
+			# for row in node_dict:
+			# 	print (row)
+			# 	writer.writerow(row)
+			writer.writerows(node_dict)
+
+	def write_links(self, links, ticker):
+		write_mode = 'r' if os.path.exists(self.json) else 'w' 
+		t = ticker.upper()
+		with open(self.json_path, write_mode) as _f:
+			data = json.load(_f)
+		
+		# add links to json
+		if t in data.keys():
+			original = data[t] + '\n'
+			updated = original + links 
+			data.update({t : updated})
 		else:
-			append_write = 'w' # make a new file if not
-		with open(_path, append_write) as _f:
-			w = csv.writer(_f)
-			if append_write == 'w':
-				headers = ['tmp']
-				w.writerow(headers)
-			data = self.build_node_arr()
-			for row in data:
-				try:
-					w.writerow(row)
-				except:
-					pass
+			data.update({t : links})
 
+		#write the updated json
+		with open(self.json_path, 'w') as _f:
+			json.dump(data, _f)
 
-	def build_node_arr(self):
-		n_list = []
-		for n in self.nodes:
-			if n == None:
-				continue 
-			d_tmp = n.__dict__ 					# get Node object attributes into a dict
-			n_list.append(d_tmp.items())		# convert the dict to an array and append it
-		return [n[1] for n in n_list]
 
 class Worker(object):
 	def __init__(self, ticker, source, query):
@@ -91,7 +128,10 @@ class Worker(object):
 		self.query = query			# string
 		self.links = []				# array (string)
 		self.nodes = []				# array (Node())
-		writer = None 				# Writer() object 
+
+	def work(self):
+		self.set_links()
+		self.build_nodes()
 
 	def set_links(self):
 		html = "https://www.google.co.in/search?site=&source=hp&q="+self.query+"&gws_rd=ssl"
@@ -99,7 +139,7 @@ class Worker(object):
 		try:
 			soup = BeautifulSoup(urllib2.urlopen(req).read(),"html.parser")
 		except (urllib2.HTTPError, urllib2.URLError) as e:
-			print "error ", e 
+			logger.error("error {} occurred in function set_links".format(e)) 
 			return 
 
 		#Re to find URLS
@@ -124,35 +164,17 @@ class Worker(object):
 			# we do not have any links for this ticker yet
 			self.links = links
 
-	def update_links(self):
-		p = '../data/links.json'
-		t = self.ticker.upper()
-		new_links = self.links
-		with open(p, 'a') as _f:
-			data = json.load(_f)
-		if t in data.keys():
-			original = data[t]
-			updated = original + new_links 
-			data.update({t : updated})
-		else:
-			data.update({t : new_links})
-
-		with open(p, 'w') as _f:
-			json.dump(data, _f)
 
 	def build_nodes(self):
 		for link in self.links:
 			node = scrape_link(link, self.ticker)	
+			# node.article = node.article.encode("utf-8")
 			if node != None:
 				node.set_sentences(node.article)
-				node.set_words(node.article)		
+				node.set_words(node.article)
+				logger.debug("words length is {} and sentence length is {}".format(len(node.words), len(node.sentences)))		
 				self.nodes.append(node)
-
-
-
-	def get_writer(self, d_path):
-		self.writer = Writer(self.nodes, d_path)
-
+		logger.debug("built {} nodes".format(len(self.nodes)))
 
 
 # ------------------------------------
@@ -161,12 +183,16 @@ class Worker(object):
 #
 # ------------------------------------
 
+
+#class WebScraper(object):
+
 def check_url(url):
 	'''
 	ensure the url begins with http
 	'''
 	valid_schemes = ['http', 'https']
 	return urlparse(url).scheme in valid_schemes
+
 
 def root_path(path):
 	while path.dirname(path) != '/':
@@ -295,8 +321,6 @@ def _scrape_link(link, ticker):
 		return result
 
 	n.article = result
-	print ("node is")
-	print (n)
 	return n
 
 def scrape_link(link, ticker):
