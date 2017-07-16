@@ -41,7 +41,7 @@ def gather_data():
     # logger.info('Creating %d nodes' % len(tickers))
     
     tickers = ["AAPL"]
-    sources = ["Bloomberg"]
+    sources = ["Bloomberg"] # Valid sources are : Bloomberg, seekingAlpha, Reuters
     # sources = ["seekingalpha"]
     csv_path = '../data/examples.csv'
     json_path = '../data/links.json'

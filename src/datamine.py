@@ -10,10 +10,12 @@ The functionality is comprised of gathering urls from google quereis and then ge
 those articles such as the article body and publishing date
 """
 import os, sys, logging, json
-import urllib2, httplib, request
+# import urllib2, httplib, requests
+import requests
 from urlparse import urlparse
 import time, csv, re
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup as BS
+import xml
 from nltk.tokenize import sent_tokenize, word_tokenize
 from datetime import datetime 
 import dateutil.parser as dparser
@@ -26,13 +28,30 @@ class Node(object):
 		# self.query	= query		#
 		self.ticker = ticker 	# string
 		self.domain = domain 	# string
-		self.article = None
+		self.sector = ''		# string
+		self.industry = ''		# string
+		self.article = '' 		# string
 		self.url = url 			# string
 		self.date = None		# datetime.date
-		self.sentences = None	# array (string)
-		self.words = None		# array (string)
+		self.sentences = []		# array (string)
+		self.words = []			# array (string)
 		self.price_init = 0.0	# float
 		self.price_t1 = 0.0		# float
+		self.price_t2 = 0.0		# float
+		self.price_t3 = 0.0		# float
+		self.price_t4 = 0.0		# float
+		self.price_t5 = 0.0		# float
+
+		self.set_params()
+		#logger.debug(self.sector, self.industry)
+
+	def set_params(self):
+		try:
+			xml = parse(urlopen('http://www.google.com/finance?&q='+self.ticker))
+  			self.sector = xml.xpath("//a[@id='sector']")[0].text
+  			self.industry = xml.xpath("//a[@id='sector']")[0].getnext().text
+  		except:
+  			logger.error('set params error')
 
 	def set_sentences(self, article):
 		self.sentences = sent_tokenize(article)
@@ -43,6 +62,8 @@ class Node(object):
 
 	def dictify(self):
 		return {	'ticker': self.ticker,
+					'sector': self.sector,
+					'industry': self.industry,
 					'domain': self.domain,
 					'article': self.article,
 					'url': self.url,
@@ -141,7 +162,7 @@ class Worker(object):
 			logger.error("error {} occurred in function set_links".format(e)) 
 			return 
 
-		#Re to find URLS
+		#find URLS
 		reg=re.compile(".*&sa=")
 
 		#get all web urls from google search result 
@@ -171,15 +192,46 @@ class Worker(object):
 # ------------------------------------
 
 
-#class WebScraper(object):
+class WebScraper(object):
+	def __init__(self, url, ticker, curious=False):
+		self.url = url
+		self.source = source
+		self.ticker = ticker
+		self.curious = curious
 
-def check_url(url):
+	def validate_url(self):
+		valid_schemes = ['http', 'https']
+		url_obj = urlparse(self.url)
+		return (url_obj.scheme in valid_schemes) and (url_obj.hostname.split('.')[1].upper() == self.source.upper())
+
+	def scrape(self):
+		if self.curious and not self.validate_url(): return None
+
+		try: 
+			req = requests.get(url)
+			req.raise_for_status()
+		except requests.exceptions.Timeout:
+			logger.log('Web Scraper Error opening {} due to Timeout'.format(self.url))
+		except requests.exceptions.TooManyRedirects:
+			logger.log('Web Scraper Error opening {} due to Too many Redirects'.format(self.url))
+		except requests.exceptions.RequestException as e:
+			logger.log('Web Scraper Error opening {} due to Timeout'.format(str(e)))
+
+
+		soup = BeautifulSoup(page.read().decode('utf-8', 'ignore'), "html.parser")
+
+
+
+# -*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+# -*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-
+
+def check_url(url, source):
 	'''
-	ensure the url begins with http
+	ensure the url begins with http && is from the source
 	'''
 	valid_schemes = ['http', 'https']
-	return urlparse(url).scheme in valid_schemes
-
+	url_obj = urlparse(link)
+	return (url_obj.scheme in valid_schemes) and (url_obj.hostname.split('.')[1].upper() == source.upper())
 
 def root_path(path):
 	while path.dirname(path) != '/':
@@ -204,7 +256,6 @@ def _date(date):
 
 def _article_timestamp(date):
 	return date['datetime'].strip('\n')
-
 
 def find_date(soup):
 	'''
@@ -270,6 +321,8 @@ def parse_article(soup, domain):
 	pre_tags = soup.find_all('pre')
 	data = p_tags[p_offset[domain]:] + pre_tags
 
+	#cleantext = BeautifulSoup(raw_html).text
+
 	for i in data:
 		try:
 			export_html += i.contents[0]
@@ -282,6 +335,7 @@ def parse_article(soup, domain):
 def _scrape_link(link, ticker):
 
 	if not check_url(link):
+		logger.error('invalid url')
 		return -1
 
 	#	OPEN PAGE AND GET THE HTML
@@ -289,12 +343,11 @@ def _scrape_link(link, ticker):
 	try:
 		page = urllib2.urlopen(req)
 	except:
+		logger.error('urllib2 open error')
 		return -1
 	soup = BeautifulSoup(page.read().decode('utf-8', 'ignore'), "html.parser")
 
 	#	PICK APART THE SOUP OBJECT
-	url_obj = urlparse(link)
-	domain = url_obj.hostname.split('.')[1]
 	# root_path = root_path(url_obj.path)
 	title = find_title(soup)
 	date = find_date(soup)
@@ -311,10 +364,6 @@ def _scrape_link(link, ticker):
 	return n
 
 def scrape_link(link, ticker):
-	'''
-	takes in a ticker and a url and returns the article body as a string 
-	as well as the associated change in stock price 
-	'''
 	result = _scrape_link(link, ticker)
 
 	options = {						#	possible error conditions
