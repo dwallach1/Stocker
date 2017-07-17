@@ -35,7 +35,6 @@ class WebNode(object):
         self.sector = sector        # string
 
 
-
 def validate_url(url_obj, source, curious=False):
     valid_schemes = ['http', 'https']
     domain = list(filter(lambda x: len(x) > 3, url_obj.hostname.split('.')))[0].lower()
@@ -99,33 +98,28 @@ def scrape(url, source, curious=False, ticker=None):
    
     pubdate = find_date(soup, source, paths[0])
     article = find_article(soup, source, paths[0])
+    
+    # if len(article) < 30: return None
+
     print('found pubdate to be: {}'.format(str(pubdate)))
     # print('found article to be: {}'.format(article))
 
-    wn = WebNode(pubdate, article)
-    
     words = article.decode('utf-8').split(u' ')
     sentences = list(map(lambda s: s.encode('utf-8'), re.split(r' *[\.\?!][\'"\)\]]* *', article.decode('utf-8'))))
 
-    if ticker:
-        yahoo_url = 'https://finance.yahoo.com/quote/'+ticker
-        try: 
-            yahoo_req = requests.get(yahoo_url)
-            yahoo_req.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            print('Web Scraper Error from yahoo_url: {}'.format(str(e)))
-            return None
+    # if ticker:
+    #     google_url = 'https://www.google.com/finance?&q='+ticker
+    #     try: 
+    #         google_req = requests.get(google_url)
+    #         google_req.raise_for_status()
+    #     except requests.exceptions.RequestException as e:
+    #         print('Web Scraper Error from google_url: {}'.format(str(e)))
+    #         return None
+    #     s = soup(google_req.content, 'html.parser')
+    #     x = s.find_all('a', attrs={'class':'sector'})
+    #     html = re.findall(r'Sector: (.*?) ', google_req.content, re.DOTALL)
 
-        html = re.match('sector', yahoo_req.content)
-        print (html)
-
-        # s = BS(yahoo_req.content, 'html.parser')
-        # x = s.find('div', attrs={'data-test': 'asset-profile'})
-        # print (x)
-        # sector, industry = x[0], x[1]
-        # print (sector)
-        # print (industry)
-    return WebNode(pubdate, article)
+    return WebNode(pubdate, article, words, sentences)
 
 
 
