@@ -12,7 +12,6 @@ from bs4 import BeautifulSoup
 import price_change as pc, datamine
 from datamine import *
 import time
-# from sentiment_analysis import fin_dict, ID3
 
 def get_snp500():
     hdr = {'User-Agent': 'Mozilla/5.0'}
@@ -35,18 +34,14 @@ def gather_data():
     Data is parsed and matched with associated stock price data to teach a neural network
     to find the connection (if one exisits)
     '''
-    # tickers = get_snp500()
-    # tickers += ["AAPL", "GOOG", "GPRO", "TSLA"]
-    # sources = ["Bloomberg", "Seekingalpha"]
-    # logger.info('Creating %d nodes' % len(tickers))
-    
-    tickers = ["UA"]
-    sources = ["Bloomberg"] # Valid sources are : Bloomberg, seekingAlpha, Reuters
+    tickers = get_snp500()
+    tickers += ["AAPL", "GOOG", "GPRO", "TSLA"]
+    sources = ['bloomberg', 'seekingalpha', 'reuters'] # Valid sources are : Bloomberg, seekingAlpha, Reuters
+    # tickers = ['ua']
     # sources = ["seekingalpha"]
     csv_path = '../data/examples.csv'
     json_path = '../data/links.json'
     dm = datamine.Miner(tickers, sources, csv_path, json_path)
-    dm.build_queries()
     dm.mine()
 
 

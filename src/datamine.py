@@ -9,14 +9,20 @@ This Python module has several purposes oriented around mining data from the web
 The functionality is comprised of gathering urls from google quereis and then getting the data from 
 those articles such as the article body and publishing date
 """
-import os, sys, logging, json
-import requests
+import os, sys, logging, json, string
 import time, csv, re
+from urlparse import urlparse
+import requests
 from bs4 import BeautifulSoup as BS
-from datetime import datetime 
-from playground import scrape
+from datetime import datetime
+from webparser import scrape
 
 logger = logging.getLogger(__name__)
+
+
+# TOD0: take out homepages from parsed urls
+# TODO: add multiple queries
+# TODO: add sector and industry
 
 class Miner(object):
 	"""Miner class manages the work for mining data and writing it to a csv file"""
@@ -30,28 +36,34 @@ class Miner(object):
 	def build_queries(self):
 		for t in self.tickers:
 			for s in self.sources:
-				q = t + '+' + s + '+' + 'stock+articles'
-				self.queries.append([t, s, q])
+				q1 = t + '+' + s + '+' + 'stock+articles'
+				cname = self.get_name(t)
+				if not (cname is None): 
+					q2 = s + '+' + '+'.join(map(lambda s: re.sub(r'[^\w\s]','',s), filter(lambda i: i != 'Inc.' ,cname.split(' ')))) + '+news'
+					self.queries.append([t, s, q2])
+				self.queries.append([t, s, q1])
 		logger.debug('built {} queries'.format(len(self.queries)))
 
 	def mine(self):
+		self.build_queries()
 		total = len(self.queries)
 		logger.debug('Creating {} worker(s)'.format(total))
 		logger.info('Starting to build and write batches ...')
 		for i,q in enumerate(self.queries):			
 			worker = Worker(q[0], q[1], q[2])
 			worker.configure(self.json_path)
-			worker.work()	
-			# self.write_csv(worker.nodes)
-			self.write_json(worker.urls, worker.ticker)	
+			worker.work()
+			node_dict = worker.dictify()
+			if not (node_dict is None):	
+				self.write_csv(node_dict)
+				self.write_json(worker.urls, worker.ticker)	
 		print('\nDone.')
 
-	def write_csv(self, nodes):
-		node_dict = list(map(lambda n: n.dictify(), list(filter(lambda n: n.date != None , nodes))))
+	def write_csv(self, node_dict):
+		# node_dict = list(map(lambda n: n.dictify(), list(filter(lambda n: n.date != None , nodes))))
 		write_mode = 'a' if os.path.exists(self.csv_path) else 'w'
 		with open(self.csv_path, write_mode) as f:
 			fieldnames = sorted(node_dict[0].keys()) # sort to ensure they are the same order every time
-			print (fieldnames)
 			writer = csv.DictWriter(f, fieldnames=fieldnames)
 			if write_mode == 'w':
 				writer.writeheader()
@@ -63,6 +75,9 @@ class Miner(object):
 		with open(self.json_path, write_mode) as f:
 			data = json.load(f)
 		
+		# remove homepages
+		urls = filter(lambda url: not (urlparse(url).path.split('/')[1].lower() in ['quote', 'symbol', 'finance']), urls)		
+
 		# add urls to json
 		if t in data.keys():
 			original = data[t] 
@@ -74,6 +89,17 @@ class Miner(object):
 		#write the updated json
 		with open(self.json_path, 'w') as f:
 			json.dump(data, f, indent=4)
+
+	def get_name(self, ticker):
+		"""
+		Convert the ticker to the associated company name
+		"""
+		url = "http://d.yimg.com/autoc.finance.yahoo.com/autoc?query={}&region=1&lang=en".format(ticker)
+		result = requests.get(url).json()
+
+		for x in result['ResultSet']['Result']:
+			if x['symbol'] == ticker:
+				return x['name']
 
 class Worker(object):
 	"""contains the work of the program, filling in the node data so that it can be written to the csv file"""
@@ -114,7 +140,6 @@ class Worker(object):
 	def build_nodes(self):
 		for url in self.urls:
 			node = scrape(url, self.source, ticker=self.ticker)
-			logger.debug('node is incoming as {}'.format(node))
 			if isinstance(node, list):
 				self.urls = self.urls + list(set(node) - set(self.urls))
 				logger.debug('Hit landing page -- crawling for more links')
@@ -122,7 +147,9 @@ class Worker(object):
 			elif node != None: self.nodes.append(node)
 		logger.debug("built {} nodes".format(len(self.nodes)))
 
-	def dictify(self): self.nodes = list(map(lambda node: {    'ticker': self.ticker,
+	def dictify(self): 
+		if len(self.nodes) == 0: return None 
+		return list(map(lambda node: {   'ticker': self.ticker,
                                     					'sector': node.sector,
 					                                    'industry': node.industry,
 					                    				'article': node.article,
@@ -130,6 +157,10 @@ class Worker(object):
 					                    				'pubdate': node.pubdate,
 					                    				'sentences': node.sentences,
 					                    				'words': node.words,
+					                    				'polarity': node.polarity,
+					                    				'subjectivity': node.subjectivity,
+					                    				'negative': node.negative,
+					                    				'positive': node.positive,
 					                    				'priceT0': 0.0,
 					                 	   				'priceT1': 0.0,
 					                 	   				'priceT2': 0.0,

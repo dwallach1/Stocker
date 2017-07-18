@@ -1,3 +1,4 @@
+*.pyc
 *.csv
 *.json
 *.txt

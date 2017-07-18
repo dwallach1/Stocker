@@ -17,40 +17,56 @@ notes:
 - price to equity ratio (pe): 
 """
 import re
+import logging
 import requests
 from urlparse import urlparse
 from datetime import datetime 
 import dateutil.parser as dateparser
+import pysentiment as ps 
 from bs4 import BeautifulSoup as BS
 
+logger = logging.getLogger(__name__)
 
 class WebNode(object):
     """represents an entry in data.csv that will be used to train our neural network"""
-    def __init__(self, pubdate, article, words, sentences, industry='', sector=''):
+    def __init__(self, url, pubdate, article, words, sentences, industry='', sector=''):
+        self.url = url              # string
         self.pubdate = pubdate      # datetime
         self.article = article      # article
         self.words = words          # list
         self.sentences = sentences  # list
         self.industry = industry    # string
         self.sector = sector        # string
+        self.score = ps.LM().get_score(words)
+        self.subjectivity = self.score['Subjectivity']
+        self.polarity = self.score['Polarity']
+        self.negative = self.score['Negative']
+        self.positive = self.score['Positive']
 
 
 def validate_url(url_obj, source, curious=False):
     valid_schemes = ['http', 'https']
-    domain = list(filter(lambda x: len(x) > 3, url_obj.hostname.split('.')))[0].lower()
+    if not url_obj.hostname: return False
+    domain_list = list(filter(lambda x: len(x) > 3, url_obj.hostname.split('.')))
+    domain = ''
+    if len(domain_list) > 0: domain = domain_list[0].lower()
     return (url_obj.scheme in valid_schemes) and ((domain == source.lower()) or curious)
 
 def find_date(soup, source, container):
     s, c = source.lower(), container.lower()
     if s == 'bloomberg':
-        if c == 'press-releases': 
-            return dateparser.parse(soup.find('span', attrs={'class': 'pubdate'}).text.strip(), fuzzy=True)
-        return dateparser.parse(soup.find('time').text.strip(), fuzzy=True)
+        if c == 'press-releases':
+            date_html =  soup.find('span', attrs={'class': 'pubdate'})
+            if not (date_html is None): return dateparser.parse(date_html.text.strip(), fuzzy=True); return None
+        date_html = soup.find('time')
+        if not (date_html is None): return dateparser.parse(date_html.text.strip(), fuzzy=True); return None
     elif s == 'seekingalpha':
         if c == 'filing': return None
-        return dateparser.parse(soup.find('time', attrs={'itemprop': 'datePublished'})['content'], fuzzy=True)
+        date_html = soup.find('time', attrs={'itemprop': 'datePublished'})
+        if not (date_html is None): return dateparser.parse(date_html['content'], fuzzy=True); return None
     elif s == 'reuters':
-        return dateparser.parse(''.join(soup.find('div', attrs={'class': 'ArticleHeader_date_V9eGk'}).text.strip().split('/')[:2]), fuzzy=True)
+        date_html = soup.find('div', attrs={'class': 'ArticleHeader_date_V9eGk'})
+        if not (date_html is None): return dateparser.parse(''.join(date_html.text.strip().split('/')[:2]), fuzzy=True); return None
     
     # module not specialized in source, need to account for errors
     # try:
@@ -67,27 +83,28 @@ def find_article(soup, source, container):
 def crawl_home_page(soup, ID):
     ID = ID.lower()
     if ID == 'quote':       # bloomberg
-        return list(map(lambda url: url['href'], soup.find_all('a', attrs={'class': 'news-story__url'}, href=True)))        
+        urls = soup.find_all('a', attrs={'class': 'news-story__url'}, href=True)
+        if not (urls is None): return list(map(lambda url: url['href'], urls)); return None        
     elif ID == 'symbol':  # seeking alpha
         base = 'https://seekingalpha.com'
-        return list(map(lambda url: base + url['href'],soup.find_all('a', attrs={'sasource': 'qp_latest'}, href=True)))  
+        urls = soup.find_all('a', attrs={'sasource': 'qp_latest'}, href=True)
+        if not (urls is None): return list(map(lambda url: base + url['href'], urls)); return None  
     elif ID == 'finance':   # reuters
         base = 'http://reuters.com'
-        return list(map(lambda url: base + url['href'], soup.find('div', attrs={'id': 'companyOverviewNews'}).find_all('a')))  
+        urls = soup.find('div', attrs={'id': 'companyOverviewNews'})
+        if not (urls is None): return list(map(lambda url: base + url['href'], urls.find_all('a'))); return None
     return None
 
 
 def scrape(url, source, curious=False, ticker=None):
     url_obj = urlparse(url)
     if not url_obj: return None
-    if not validate_url(url_obj, source, curious=curious): return None
-    print('URL has been validated and accepted')
-    
+    if not validate_url(url_obj, source, curious=curious): return None    
     try: 
         article_req = requests.get(url)
         article_req.raise_for_status()
     except requests.exceptions.RequestException as e:
-        print('Web Scraper Error: {}'.format(str(e)))
+        logger.error('Web Scraper Error: {}'.format(str(e)))
         return None
 
     paths = url_obj.path.split('/')[1:] # first entry is '' so exclude it
@@ -97,11 +114,12 @@ def scrape(url, source, curious=False, ticker=None):
     if p in ['quote', 'symbol', 'finance']: return crawl_home_page(soup, p)
    
     pubdate = find_date(soup, source, paths[0])
+    if pubdate is None: return None
     article = find_article(soup, source, paths[0])
     
     # if len(article) < 30: return None
 
-    print('found pubdate to be: {}'.format(str(pubdate)))
+    logger.info('found pubdate to be: {}'.format(str(pubdate)))
     # print('found article to be: {}'.format(article))
 
     words = article.decode('utf-8').split(u' ')
@@ -119,7 +137,7 @@ def scrape(url, source, curious=False, ticker=None):
     #     x = s.find_all('a', attrs={'class':'sector'})
     #     html = re.findall(r'Sector: (.*?) ', google_req.content, re.DOTALL)
 
-    return WebNode(pubdate, article, words, sentences)
+    return WebNode(url, pubdate, article, words, sentences)
 
 
 
