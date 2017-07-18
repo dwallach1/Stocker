@@ -5,20 +5,14 @@ Author: David Wallach
 This function gathers all of the stock tickers and sources to call datamine.py to fill in the 
 data.csv file
 """
-import logging
-import urllib2, httplib, requests
-import re
+import re, time, logging
+import requests
 from bs4 import BeautifulSoup
-import price_change as pc, datamine
 from datamine import *
-import time
 
 def get_snp500():
-    hdr = {'User-Agent': 'Mozilla/5.0'}
-    req = urllib2.Request("http://en.wikipedia.org/wiki/List_of_S%26P_500_companies", headers=hdr)
-    page = urllib2.urlopen(req)
-    soup = BeautifulSoup(page, "lxml")
-
+    req = request.get("http://en.wikipedia.org/wiki/List_of_S%26P_500_companies", headers={'User-Agent': 'Mozilla/5.0'})
+    soup = BeautifulSoup(req.content, "lxml")
     table = soup.find('table', {'class': 'wikitable sortable'})
     tickers = list()
     for row in table.findAll('tr'):
@@ -34,11 +28,11 @@ def gather_data():
     Data is parsed and matched with associated stock price data to teach a neural network
     to find the connection (if one exisits)
     '''
+    # tickers = ['ua']
+    # sources = ["seekingalpha"]
     tickers = get_snp500()
     tickers += ["AAPL", "GOOG", "GPRO", "TSLA"]
     sources = ['bloomberg', 'seekingalpha', 'reuters'] # Valid sources are : Bloomberg, seekingAlpha, Reuters
-    # tickers = ['ua']
-    # sources = ["seekingalpha"]
     csv_path = '../data/examples.csv'
     json_path = '../data/links.json'
     dm = datamine.Miner(tickers, sources, csv_path, json_path)

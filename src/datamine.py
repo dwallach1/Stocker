@@ -20,9 +20,10 @@ from webparser import scrape
 logger = logging.getLogger(__name__)
 
 
-# TOD0: take out homepages from parsed urls
-# TODO: add multiple queries
-# TODO: add sector and industry
+# TOD0: take out homepages from parsed urls 		[done]
+# TODO: add multiple queries 
+# TODO: add sector and industry 					[done]
+# TODO: add error handling to all http requests
 
 class Miner(object):
 	"""Miner class manages the work for mining data and writing it to a csv file"""
@@ -95,7 +96,7 @@ class Miner(object):
 		Convert the ticker to the associated company name
 		"""
 		url = "http://d.yimg.com/autoc.finance.yahoo.com/autoc?query={}&region=1&lang=en".format(ticker)
-		result = requests.get(url).json()
+		result = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}).json()
 
 		for x in result['ResultSet']['Result']:
 			if x['symbol'] == ticker:
@@ -123,7 +124,7 @@ class Worker(object):
 	def get_urls(self):
 		_url = "https://www.google.co.in/search?site=&source=hp&q="+self.query+"&gws_rd=ssl"
 		try:
-			req = requests.get(_url)
+			req = requests.get(_url, headers={'User-Agent': 'Mozilla/5.0'})
 			req.raise_for_status()
 		except requests.exceptions.RequestException as e:
 			logger.error("error {} occurred in function set_urls".format(str(e))) 
@@ -149,21 +150,21 @@ class Worker(object):
 
 	def dictify(self): 
 		if len(self.nodes) == 0: return None 
-		return list(map(lambda node: {   'ticker': self.ticker,
-                                    					'sector': node.sector,
-					                                    'industry': node.industry,
-					                    				'article': node.article,
-					                    				'url': node.url,
-					                    				'pubdate': node.pubdate,
-					                    				'sentences': node.sentences,
-					                    				'words': node.words,
-					                    				'polarity': node.polarity,
-					                    				'subjectivity': node.subjectivity,
-					                    				'negative': node.negative,
-					                    				'positive': node.positive,
-					                    				'priceT0': 0.0,
-					                 	   				'priceT1': 0.0,
-					                 	   				'priceT2': 0.0,
-					                 	   				'priceT3': 0.0,
-					                 	   				'priceT4': 0.0,
-					                 	   				'priceT5': 0.0 }, self.nodes))
+		return list(map(lambda node: {  'ticker': self.ticker,
+                    					'sector': node.sector,
+	                                    'industry': node.industry,
+	                    				'article': node.article,
+	                    				'url': node.url,
+	                    				'pubdate': node.pubdate,
+	                    				'sentences': node.sentences,
+	                    				'words': node.words,
+	                    				'polarity': node.polarity,
+	                    				'subjectivity': node.subjectivity,
+	                    				'negative': node.negative,
+	                    				'positive': node.positive,
+	                    				'priceT0': 0.0,
+	                 	   				'priceT1': 0.0,
+	                 	   				'priceT2': 0.0,
+	                 	   				'priceT3': 0.0,
+	                 	   				'priceT4': 0.0,
+	                 	   				'priceT5': 0.0 }, self.nodes))

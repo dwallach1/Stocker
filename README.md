@@ -9,41 +9,47 @@ An example use case is:
 import Datamine
 tickers = ['AAPL', 'GOOG', 'GPRO', 'TSLA']		# array of stock tickers (strings)
 sources = ['bloomberg', 'seekingalpha', 'reuters'] 	# specalized sources are : Bloomberg, seekingAlpha, Reuters
-csv_path = '../data/examples.csv'		# path of where to write output (gathered information)
-json_path = '../data/links.json' 	# path of where to write output (for skipping duplicates)
+csv_path = '../data/examples.csv'				# path of where to write output (gathered information)
+json_path = '../data/links.json' 				# path of where to write output (for skipping duplicates)
 dm = datamine.Miner(tickers, sources, csv_path, json_path)	# initalize miner
-dm.mine()			# start the miner
+dm.mine()										# start the miner
 ```
 
 # Dependencies
 
-- Python 2.7
-- BeautifulSoup4
-
+- [Python 2.7](https://www.python.org/download/releases/2.7/)
+- [BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/bs4/doc/)
+- [Requests](http://docs.python-requests.org/en/master/)
 
 
 
 # Code
 
-The purpose of the overall system is to gather data and use it as input to develop a classifier
-to model the data. To do this, I defined a Node struct that correlated to a training example for the input 
-to the classifier.
+The purpose of the overall system is to gather data and use it as input to develop a model
+to classify new, incoming data. To do this, I defined a Node struct that correlated to a training example for the input 
+to the classifier. From here, I used [Quantopian](https://www.quantopian.com) to read the csv file, and get the
+correlated (w/ regards to time) stock price fluctuations to classify the training data. Following this, I backtested the trading logic, and with a few smoothing methods, I was able to get:
+		Return on Investment: 	x%
+		Sharpe Ratio:			x
+		Alpha:					x
+		Beta:					x
+		
 
 ```python
 import pysentiment as py
 class WebNode(object):
     """represents an entry in data.csv that will be used to train our neural network"""
     def __init__(self, url, pubdate, article, words, sentences, industry='', sector=''):
-        self.url = url              # string
-        self.pubdate = pubdate      # datetime
-        self.article = article      # article
-        self.words = words          # list
-        self.sentences = sentences  # list
-        self.industry = industry    # string
-        self.sector = sector        # string
-        self.score = ps.LM().get_score(words)	# dict 
+        self.url = url              					# string
+        self.pubdate = pubdate      					# datetime
+        self.article = article      					# article
+        self.words = words          					# list
+        self.sentences = sentences  					# list
+        self.industry = industry    					# string
+        self.sector = sector       					    # string
+        self.score = ps.LM().get_score(words)			# dict 
         self.subjectivity = self.score['Subjectivity']	# float
-        self.polarity = self.score['Polarity']	# float
-        self.negative = self.score['Negative']	# float
-        self.positive = self.score['Positive']	# float 
+        self.polarity = self.score['Polarity']			# float
+        self.negative = self.score['Negative']			# float
+        self.positive = self.score['Positive']			# float 
 ```

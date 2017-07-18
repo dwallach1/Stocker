@@ -16,10 +16,9 @@ notes:
 - price to book ratio (pb): how much are all tangible assets vs price of the stock
 - price to equity ratio (pe): 
 """
-import re
-import logging
-import requests
+import re, logging
 from urlparse import urlparse
+import requests
 from datetime import datetime 
 import dateutil.parser as dateparser
 import pysentiment as ps 
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 class WebNode(object):
     """represents an entry in data.csv that will be used to train our neural network"""
-    def __init__(self, url, pubdate, article, words, sentences, industry='', sector=''):
+    def __init__(self, url, pubdate, article, words, sentences, industry, sector):
         self.url = url              # string
         self.pubdate = pubdate      # datetime
         self.article = article      # article
@@ -68,7 +67,7 @@ def find_date(soup, source, container):
         date_html = soup.find('div', attrs={'class': 'ArticleHeader_date_V9eGk'})
         if not (date_html is None): return dateparser.parse(''.join(date_html.text.strip().split('/')[:2]), fuzzy=True); return None
     
-    # module not specialized in source, need to account for errors
+    # TODO: module not specialized in source + need to account for errors
     # try:
     # except:
     return None
@@ -124,24 +123,35 @@ def scrape(url, source, curious=False, ticker=None):
 
     words = article.decode('utf-8').split(u' ')
     sentences = list(map(lambda s: s.encode('utf-8'), re.split(r' *[\.\?!][\'"\)\]]* *', article.decode('utf-8'))))
+    industry, sector = '', ''
+    
+    if ticker:
+        google_url = 'https://www.google.com/finance?&q='+ticker
+        try: 
+            r = requests.get(google_url)
+            r.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            print('Web Scraper Error from google_url: {}'.format(str(e)))
+            return WebNode(url, pubdate, article, words, sentences, industry, sector)
+        s = BS(r.text, 'html.parser')
+        
+        # container = s.find('div', attrs= {'class':'sfe-section'}).findAll('a')
+        container = s.find_all('a')
+        next_ = False
+        for a in container:
+            if next_: 
+                industry = a.text.strip()
+                break
+            if a.get('id') == 'sector': 
+                print(a)
+                sector = a.text.strip()
+                next_ = True
 
-    # if ticker:
-    #     google_url = 'https://www.google.com/finance?&q='+ticker
-    #     try: 
-    #         google_req = requests.get(google_url)
-    #         google_req.raise_for_status()
-    #     except requests.exceptions.RequestException as e:
-    #         print('Web Scraper Error from google_url: {}'.format(str(e)))
-    #         return None
-    #     s = soup(google_req.content, 'html.parser')
-    #     x = s.find_all('a', attrs={'class':'sector'})
-    #     html = re.findall(r'Sector: (.*?) ', google_req.content, re.DOTALL)
-
-    return WebNode(url, pubdate, article, words, sentences)
+    return WebNode(url, pubdate, article, words, sentences, industry, sector)
 
 
 
-
+# TESTS
 # url = 'https://www.bloomberg.com/press-releases/2017-07-13/top-5-companies-in-the-global-consumer-electronics-and-telecom-products-market-by-bizvibe'
 # url = 'https://www.bloomberg.com/gadfly/articles/2017-04-27/under-armour-earnings-buckle-up'
 # url = 'https://www.bloomberg.com/news/videos/2017-04-27/under-armour-regains-footing-amid-footwear-slump-video'
