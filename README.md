@@ -1,4 +1,19 @@
-# Stocker
+# Datamine
+This Python package initial's intent was to act as a web scraper for financial articles. It is specialized in parsing 
+articles from Bloomberg, SeekingAlpha & Reuters as of writing this. Datamine exports it's findings as a csv file,
+allowing people to easily integrate the findings into machine learning models to make sense of the large amount of data.
+
+An example use case is:
+
+```python
+import Datamine
+tickers = ['AAPL', 'GOOG', 'GPRO', 'TSLA']					# array of stock tickers (strings)
+sources = ['bloomberg', 'seekingalpha', 'reuters'] 			# specalized sources are : Bloomberg, seekingAlpha, Reuters
+csv_path = '../data/examples.csv'							# path of where to write output (gathered information)
+json_path = '../data/links.json' 							# path of where to write output (for skipping duplicates)
+dm = datamine.Miner(tickers, sources, csv_path, json_path)	# initalize miner
+dm.mine()													# start the miner
+```
 
 # Dependencies
 
@@ -6,25 +21,6 @@
 - BeautifulSoup4
 
 
-```python
-import datamine
-tickers += ["AAPL", "GOOG", "GPRO", "TSLA"]
-sources = ['bloomberg', 'seekingalpha', 'reuters'] # Valid sources are : Bloomberg, seekingAlpha, Reuters
-csv_path = '../data/examples.csv'
-json_path = '../data/links.json'
-dm = datamine.Miner(tickers, sources, csv_path, json_path)
-dm.mine()
-```
-
-# Machine Learning Aspects
-
-_Handling Missing Attributes_
-I did not collect data that did not have all of the following:
-- ticker
-- url 
-- date
-This is because without this information, I would be unable to find the correlated stock prices and 
-the training example would be rendered useless. Due to this methodology, I did not have any examples with missing attributes in my dataset that I used to build my classifers. 
 
 
 # Code
@@ -34,6 +30,7 @@ to model the data. To do this, I defined a Node struct that correlated to a trai
 to the classifier.
 
 ```python
+import pysentiment as py
 class WebNode(object):
     """represents an entry in data.csv that will be used to train our neural network"""
     def __init__(self, url, pubdate, article, words, sentences, industry='', sector=''):
