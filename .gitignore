@@ -3,3 +3,5 @@
 *.json
 *.txt
 .idea
+old.py
+test/

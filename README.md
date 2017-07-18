@@ -7,12 +7,12 @@ An example use case is:
 
 ```python
 import Datamine
-tickers = ['AAPL', 'GOOG', 'GPRO', 'TSLA']					# array of stock tickers (strings)
-sources = ['bloomberg', 'seekingalpha', 'reuters'] 			# specalized sources are : Bloomberg, seekingAlpha, Reuters
-csv_path = '../data/examples.csv'							# path of where to write output (gathered information)
-json_path = '../data/links.json' 							# path of where to write output (for skipping duplicates)
+tickers = ['AAPL', 'GOOG', 'GPRO', 'TSLA']		# array of stock tickers (strings)
+sources = ['bloomberg', 'seekingalpha', 'reuters'] 	# specalized sources are : Bloomberg, seekingAlpha, Reuters
+csv_path = '../data/examples.csv'		# path of where to write output (gathered information)
+json_path = '../data/links.json' 	# path of where to write output (for skipping duplicates)
 dm = datamine.Miner(tickers, sources, csv_path, json_path)	# initalize miner
-dm.mine()													# start the miner
+dm.mine()			# start the miner
 ```
 
 # Dependencies
@@ -41,9 +41,9 @@ class WebNode(object):
         self.sentences = sentences  # list
         self.industry = industry    # string
         self.sector = sector        # string
-        self.score = ps.LM().get_score(words)
-        self.subjectivity = self.score['Subjectivity']
-        self.polarity = self.score['Polarity']
-        self.negative = self.score['Negative']
-        self.positive = self.score['Positive']
+        self.score = ps.LM().get_score(words)	# dict 
+        self.subjectivity = self.score['Subjectivity']	# float
+        self.polarity = self.score['Polarity']	# float
+        self.negative = self.score['Negative']	# float
+        self.positive = self.score['Positive']	# float 
 ```
