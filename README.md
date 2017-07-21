@@ -12,14 +12,23 @@ sources = ['bloomberg', 'seekingalpha', 'reuters'] 	# specalized sources are : B
 csv_path = '../data/examples.csv'				# path of where to write output (gathered information)
 json_path = '../data/links.json' 				# path of where to write output (for skipping duplicates)
 dm = datamine.Miner(tickers, sources, csv_path, json_path)	# initalize miner
-dm.mine()										# start the miner
+dm.mine()							# start the miner
 ```
+
+This project is a personal research project. My goals can be split up into stages:
+
+__Stage 1__ : explore the correlation between simple financial sentiment analysis and stock price
+__Stage 2__ : build a neural network given stock prices and articles and see if it can form its own financial dictionary
+			  by placing weights on different words and such
+__Stage 3__ : if stages 1 & 2 offer anything promising, combine them and see how it performs as an investing strategy
 
 # Dependencies
 
 - [Python 2.7](https://www.python.org/download/releases/2.7/)
 - [BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/bs4/doc/)
 - [Requests](http://docs.python-requests.org/en/master/)
+- [Pysentiment](https://pypi.python.org/pypi/pysentiment)
+- [tqdm](https://github.com/tqdm/tqdm) (for UI)
 
 
 
@@ -29,11 +38,11 @@ The purpose of the overall system is to gather data and use it as input to devel
 to classify new, incoming data. To do this, I defined a Node struct that correlated to a training example for the input 
 to the classifier. From here, I used [Quantopian](https://www.quantopian.com) to read the csv file, and get the
 correlated (w/ regards to time) stock price fluctuations to classify the training data. Following this, I backtested the trading logic, and with a few smoothing methods, I was able to get:
-		Return on Investment: 	x%
-		Sharpe Ratio:			x
-		Alpha:					x
-		Beta:					x
-		
+		Return on Investment: 	x%,
+		Sharpe Ratio:			x,
+		Alpha:					x,
+		Beta:					x, 
+
 
 ```python
 import pysentiment as py

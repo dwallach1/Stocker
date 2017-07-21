@@ -53,24 +53,26 @@ def validate_url(url_obj, source, curious=False):
 
 def find_date(soup, source, container):
     s, c = source.lower(), container.lower()
-    if s == 'bloomberg':
-        if c == 'press-releases':
-            date_html =  soup.find('span', attrs={'class': 'pubdate'})
+    try:
+        if s == 'bloomberg':
+            if c == 'press-releases':
+                date_html =  soup.find('span', attrs={'class': 'pubdate'})
+                if not (date_html is None): return dateparser.parse(date_html.text.strip(), fuzzy=True); return None
+            date_html = soup.find('time')
             if not (date_html is None): return dateparser.parse(date_html.text.strip(), fuzzy=True); return None
-        date_html = soup.find('time')
-        if not (date_html is None): return dateparser.parse(date_html.text.strip(), fuzzy=True); return None
-    elif s == 'seekingalpha':
-        if c == 'filing': return None
-        date_html = soup.find('time', attrs={'itemprop': 'datePublished'})
-        if not (date_html is None): return dateparser.parse(date_html['content'], fuzzy=True); return None
-    elif s == 'reuters':
-        date_html = soup.find('div', attrs={'class': 'ArticleHeader_date_V9eGk'})
-        if not (date_html is None): return dateparser.parse(''.join(date_html.text.strip().split('/')[:2]), fuzzy=True); return None
-    
-    # TODO: module not specialized in source + need to account for errors
-    # try:
-    # except:
-    return None
+        elif s == 'seekingalpha':
+            if c == 'filing': return None
+            date_html = soup.find('time', attrs={'itemprop': 'datePublished'})
+            if not (date_html is None): return dateparser.parse(date_html['content'], fuzzy=True); return None
+        elif s == 'reuters':
+            date_html = soup.find('div', attrs={'class': 'ArticleHeader_date_V9eGk'})
+            if not (date_html is None): return dateparser.parse(''.join(date_html.text.strip().split('/')[:2]), fuzzy=True); return None
+        
+        # TODO: module not specialized in source + need to account for errors
+        # try:
+        # except:
+        return None
+    except: return None
 
 def find_article(soup, source, container):
     s, c = source.lower(), container.lower()
@@ -99,8 +101,9 @@ def scrape(url, source, curious=False, ticker=None):
     url_obj = urlparse(url)
     if not url_obj: return None
     if not validate_url(url_obj, source, curious=curious): return None    
-    try: 
-        article_req = requests.get(url)
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+        article_req = requests.get(url, headers=headers)
         article_req.raise_for_status()
     except requests.exceptions.RequestException as e:
         logger.error('Web Scraper Error: {}'.format(str(e)))
@@ -125,6 +128,7 @@ def scrape(url, source, curious=False, ticker=None):
     sentences = list(map(lambda s: s.encode('utf-8'), re.split(r' *[\.\?!][\'"\)\]]* *', article.decode('utf-8'))))
     industry, sector = '', ''
     
+    # look for industry and sector values
     if ticker:
         google_url = 'https://www.google.com/finance?&q='+ticker
         try: 
@@ -143,7 +147,6 @@ def scrape(url, source, curious=False, ticker=None):
                 industry = a.text.strip()
                 break
             if a.get('id') == 'sector': 
-                print(a)
                 sector = a.text.strip()
                 next_ = True
 
@@ -156,8 +159,8 @@ def scrape(url, source, curious=False, ticker=None):
 # url = 'https://www.bloomberg.com/gadfly/articles/2017-04-27/under-armour-earnings-buckle-up'
 # url = 'https://www.bloomberg.com/news/videos/2017-04-27/under-armour-regains-footing-amid-footwear-slump-video'
 # url = 'https://www.bloomberg.com/quote/UA:US'
-url = 'https://www.bloomberg.com/news/articles/2017-04-27/under-armour-loses-whatever-swagger-it-had-left'
-print (scrape(url, 'bloomberg', ticker='ua'))
+# url = 'https://www.bloomberg.com/news/articles/2017-04-27/under-armour-loses-whatever-swagger-it-had-left'
+# print (scrape(url, 'bloomberg', ticker='ua'))
 #
 
 
@@ -176,16 +179,3 @@ print (scrape(url, 'bloomberg', ticker='ua'))
 # url = 'http://www.reuters.com/article/us-under-armour-results-idUSKBN17T1LI'
 # url = 'http://www.reuters.com/finance/stocks/overview?symbol=UA.N'
 # print(scrape(url, 'reuters'))
-
-
-
-
-# def main():
-#     """ this module returns either a Node, list of urls or None"""
-
-# if __name__ == "__main__":
-#     main()
-
-
-
-
