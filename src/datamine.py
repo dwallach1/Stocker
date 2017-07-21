@@ -20,7 +20,7 @@ from webparser import scrape
 
 logger = logging.getLogger(__name__)
 
-
+# TODO: make sure client 403 errors are not happening (ensure web headers are valid)
 # TOD0: take out homepages from parsed urls         [done]
 # TODO: add multiple queries 
 # TODO: add sector and industry                     [done]
@@ -89,7 +89,8 @@ class Miner(object):
         write_mode = 'r' if os.path.exists(self.json_path) else 'w' 
         t = ticker.upper()
         with open(self.json_path, write_mode) as f:
-            data = json.load(f)
+            if write_mode == 'w': data = {}
+            else: data = json.load(f)
         
         # remove homepages
         urls = filter(lambda url: not (urlparse(url).path.split('/')[1].lower() in ['quote', 'symbol', 'finance']),
@@ -129,6 +130,7 @@ class Worker(object):
         self.nodes = []                 # array (WebNode())
 
     def configure(self, json_path):
+        if not os.path.exists(json_path): return 
         with open(json_path, 'r') as f:
             data = json.load(f)
         self.urls = data[self.ticker] if self.ticker in data else []

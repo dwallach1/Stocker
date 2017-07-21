@@ -10,7 +10,7 @@ import re, time, logging
 import sys
 import requests
 from bs4 import BeautifulSoup
-from datamine import * 
+from datamine import Miner
 
 def get_snp500():
     headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
@@ -40,8 +40,8 @@ def gather_data():
     # tickers = get_snp500()[310:]
     tickers = ["AAPL", "GOOG", "GPRO", "TSLA"]
     # sources = ['bloomberg', 'seekingalpha', 'reuters'] # Valid sources are : Bloomberg, seekingAlpha, Reuters
-    csv_path = '../data/examples.csv'
-    json_path = '../data/links.json'
+    csv_path = "../data/examples.csv"
+    json_path = "../data/links.json"
     dm = Miner(tickers, sources, csv_path, json_path)
     dm.mine()
 
