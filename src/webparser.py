@@ -97,7 +97,7 @@ def crawl_home_page(soup, ID):
     return None
 
 
-def scrape(url, source, curious=False, ticker=None):
+def scrape(url, source, curious=False, ticker=None, date_checker=True, length_checker=False, min_length=30, crawl_page=False):
     url_obj = urlparse(url)
     if not url_obj: return None
     if not validate_url(url_obj, source, curious=curious): return None    
@@ -116,15 +116,13 @@ def scrape(url, source, curious=False, ticker=None):
     if p in ['quote', 'symbol', 'finance']: return crawl_home_page(soup, p)
    
     pubdate = find_date(soup, source, paths[0])
-    if pubdate is None: return None
+    if pubdate is None and date_checker: return None
     article = find_article(soup, source, paths[0])
-    
-    # if len(article) < 30: return None
 
     logger.info('found pubdate to be: {}'.format(str(pubdate)))
-    # print('found article to be: {}'.format(article))
 
     words = article.decode('utf-8').split(u' ')
+    if length_checker and len(words) < 30: return None
     sentences = list(map(lambda s: s.encode('utf-8'), re.split(r' *[\.\?!][\'"\)\]]* *', article.decode('utf-8'))))
     industry, sector = '', ''
     
@@ -179,3 +177,25 @@ def scrape(url, source, curious=False, ticker=None):
 # url = 'http://www.reuters.com/article/us-under-armour-results-idUSKBN17T1LI'
 # url = 'http://www.reuters.com/finance/stocks/overview?symbol=UA.N'
 # print(scrape(url, 'reuters'))
+
+
+
+# url = 
+# url = 
+# url = 
+# url = 
+# print(scrape(url, 'investopedia'))
+
+
+# url = 
+# url = 
+# url = 
+# url = 
+# print(scrape(url, 'thestreet'))
+
+
+
+
+
+
+

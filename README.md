@@ -1,18 +1,18 @@
-# Datamine
+# Stocker
 This Python package initial's intent was to act as a web scraper for financial articles. It is specialized in parsing 
-articles from Bloomberg, SeekingAlpha & Reuters as of writing this. Datamine exports it's findings as a csv file,
+articles from Bloomberg, SeekingAlpha & Reuters as of writing this. Stocker exports it's findings as a csv file,
 allowing people to easily integrate the findings into machine learning models to make sense of the large amount of data.
 
 An example use case is:
 
 ```python
-import Datamine
+import stocker
 tickers = ['AAPL', 'GOOG', 'GPRO', 'TSLA']		# array of stock tickers (strings)
 sources = ['bloomberg', 'seekingalpha', 'reuters'] 	# specalized sources are : Bloomberg, seekingAlpha, Reuters
 csv_path = '../data/examples.csv'				# path of where to write output (gathered information)
 json_path = '../data/links.json' 				# path of where to write output (for skipping duplicates)
-dm = datamine.Miner(tickers, sources, csv_path, json_path)	# initalize miner
-dm.mine()							# start the miner
+stocker = Stocker(tickers, sources, csv_path, json_path)	# initalize stocker
+stocker.stock()							# start the stocker
 ```
 
 This project is a personal research project. My goals can be split up into stages:
@@ -30,6 +30,15 @@ __Stage 3__ : if stages 1 & 2 offer anything promising, combine them and see how
 - [Pysentiment](https://pypi.python.org/pypi/pysentiment)
 - [tqdm](https://github.com/tqdm/tqdm) (for UI)
 
+
+# Flags
+
+* curious=False
+* ticker=None
+* date_checker=True
+* length_checker=False
+* min_length=30
+* crawl_page=False
 
 
 # Code
