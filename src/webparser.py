@@ -1,21 +1,3 @@
-
-"""
-notes:
-
-- quant has nothing to do with the company, it uses patterns and numbers to determine
-- fundamental data is data concerning the company
-
-# Alpha		: how much of your gains were made irrespective to the market
-# Beta		: how much of your gains were made respective to the market ({-0.3, +0.3}, aim for 0)
-# Sharpe	: how much risk you took on compared to how much you made (must be > 1 -- 3 is great)
- 
-
-# moving average : good at detecting trends
-# Max-dropdown : highest high to the lowest subsequent fall (cycle based not full history)
-
-- price to book ratio (pb): how much are all tangible assets vs price of the stock
-- price to equity ratio (pe): 
-"""
 import re, logging
 from urlparse import urlparse
 import requests
@@ -25,6 +7,8 @@ import pysentiment as ps
 from bs4 import BeautifulSoup as BS
 
 logger = logging.getLogger(__name__)
+
+def homepages(): return ['quote', 'symbol', 'finance', 'markets']
 
 class WebNode(object):
     """represents an entry in data.csv that will be used to train our neural network"""
@@ -36,12 +20,11 @@ class WebNode(object):
         self.sentences = sentences  # list
         self.industry = industry    # string
         self.sector = sector        # string
-        self.score = ps.LM().get_score(words)
-        self.subjectivity = self.score['Subjectivity']
-        self.polarity = self.score['Polarity']
-        self.negative = self.score['Negative']
-        self.positive = self.score['Positive']
-
+        # self.score = ps.LM().get_score(words)
+        # self.subjectivity = self.score['Subjectivity']
+        # self.polarity = self.score['Polarity']
+        # self.negative = self.score['Negative']
+        # self.positive = self.score['Positive']
 
 def validate_url(url_obj, source, curious=False):
     valid_schemes = ['http', 'https']
@@ -67,6 +50,12 @@ def find_date(soup, source, container):
         elif s == 'reuters':
             date_html = soup.find('div', attrs={'class': 'ArticleHeader_date_V9eGk'})
             if not (date_html is None): return dateparser.parse(''.join(date_html.text.strip().split('/')[:2]), fuzzy=True); return None
+        elif s == 'investopedia':
+            date_html = soup.find('span', attrs={'class':'by-author'})
+            if not (date_html is None): return dateparser.parse(date_html.text.strip(), fuzzy=True); return None
+        elif s == 'thestreet':
+            date_html = soup.find('time', attrs={'itemprop':'datePublished'})
+            if not (date_html is None): return dateparser.parse(date_html['datetime'], fuzzy=True); return None
         
         # TODO: module not specialized in source + need to account for errors
         # try:
@@ -80,12 +69,13 @@ def find_article(soup, source, container):
     if s == 'bloomberg': offset = 8
     return ' '.join(list(map(lambda p: p.text.strip(), soup.find_all('p')[offset:]))).encode('utf-8')
 
-
 def crawl_home_page(soup, ID):
     ID = ID.lower()
-    if ID == 'quote':       # bloomberg
+    if ID == 'quote':       # bloomberg / thestreet
         urls = soup.find_all('a', attrs={'class': 'news-story__url'}, href=True)
-        if not (urls is None): return list(map(lambda url: url['href'], urls)); return None        
+        if not (urls is None): return list(map(lambda url: url['href'], urls))
+        urls = soup.find_all('div', attrs={'class': 'news-story__url'}, href=True) 
+        if not (urls is None): return list(map(lambda url: url['href'], urls)); return None
     elif ID == 'symbol':  # seeking alpha
         base = 'https://seekingalpha.com'
         urls = soup.find_all('a', attrs={'sasource': 'qp_latest'}, href=True)
@@ -94,10 +84,23 @@ def crawl_home_page(soup, ID):
         base = 'http://reuters.com'
         urls = soup.find('div', attrs={'id': 'companyOverviewNews'})
         if not (urls is None): return list(map(lambda url: base + url['href'], urls.find_all('a'))); return None
+    elif ID == 'markets':   # investopedia
+        base = 'http://investopedia.com'
+        urls = soup.find('section', attrs={'id':'News'})
+        if not (urls is None): return list(map(lambda url: base + url['href'], urls.find_all('a'))); return None
     return None
 
-
 def scrape(url, source, curious=False, ticker=None, date_checker=True, length_checker=False, min_length=30, crawl_page=False):
+    '''
+    parses the url for 
+    :param url: a web url
+    :type url: string
+    :param source: the domain used in the query
+    :type source: string
+    :param curious: ensure that the url is from the queried source
+    :type curious: boolean
+
+    '''
     url_obj = urlparse(url)
     if not url_obj: return None
     if not validate_url(url_obj, source, curious=curious): return None    
@@ -109,16 +112,17 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
         logger.error('Web Scraper Error: {}'.format(str(e)))
         return None
 
-    paths = url_obj.path.split('/')[1:] # first entry is '' so exclude it
+    parser = 'html.parser'
+    if source == 'investopedia': parser = 'lxml'
+    soup = BS(article_req.content, parser)
 
-    soup = BS(article_req.content, 'html.parser')
+    paths = url_obj.path.split('/')[1:] # first entry is '' so exclude it
     p = paths[0].lower()
-    if p in ['quote', 'symbol', 'finance']: return crawl_home_page(soup, p)
+    if p in homepages(): return crawl_home_page(soup, p)
    
     pubdate = find_date(soup, source, paths[0])
     if pubdate is None and date_checker: return None
     article = find_article(soup, source, paths[0])
-
     logger.info('found pubdate to be: {}'.format(str(pubdate)))
 
     words = article.decode('utf-8').split(u' ')
@@ -180,22 +184,15 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 
 
 
-# url = 
-# url = 
+# url = 'http://www.investopedia.com/news/nike-declares-it-growth-company-nke/?lgl=rira-baseline-vertical'
+# url = 'http://www.investopedia.com/markets/stocks/nke/'
 # url = 
 # url = 
 # print(scrape(url, 'investopedia'))
 
 
-# url = 
-# url = 
+# url = 'https://www.thestreet.com/story/14042017/1/stop-wondering-what-is-going-on-with-under-armour.html'
+# url = 'https://www.thestreet.com/quote/UA.html'
 # url = 
 # url = 
 # print(scrape(url, 'thestreet'))
-
-
-
-
-
-
-

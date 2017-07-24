@@ -1,4 +1,3 @@
-from __future__ import print_function
 """
 Main.py
 Author: David Wallach
@@ -14,21 +13,19 @@ from stocker import Stocker, snp_500, valid_sources
 
 
 def gather_data():
-    '''
+    """
     gets articles from relavent news sources about each stock in the S&P500. 
     Data is parsed and matched with associated stock price data to teach a neural network
     to find the connection (if one exisits)
-    '''
-    # tickers = ['eog']
-    # sources = ["seekingalpha"]
-    # tickers = snp_500()[310:]
+    """
+    # tickers = snp_500()
+    # sources = valid_sources()
     tickers = ["AAPL", "GOOG", "GPRO", "TSLA"]
-    sources = valid_sources()
+    sources = ['seekingalpha', 'bloomberg']
     csv_path = "../data/examples.csv"
     json_path = "../data/links.json"
     dm = Stocker(tickers, sources, csv_path, json_path)
-    # dm.mine(gui=False)
-    dm.stock()
+    dm.stock(depth=2)
 
 
 def init_logger():

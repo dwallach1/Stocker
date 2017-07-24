@@ -11,24 +11,16 @@ those articles such as the article body and publishing date
 """
 import os, sys, logging, json, string
 import threading, time
+import random
 import time, csv, re
 from urlparse import urlparse
 import requests
 from bs4 import BeautifulSoup as BS
 from tqdm import tqdm, trange
 from datetime import datetime
-from webparser import scrape
+from webparser import scrape, homepages
 
 logger = logging.getLogger(__name__)
-
-
-# TODO: get cname -- breaks -- client errors -- change headerss
-# TODO: make sure client 403 errors are not happening (ensure web headers are valid)
-# TOD0: take out homepages from parsed urls         [done]
-# TODO: add multiple queries 
-# TODO: add sector and industry                     [done]
-# TODO: add error handling to all http requests
-# TODO: add investopedia and thestreet to known sources
 
 class Loading:
     busy = False
@@ -83,6 +75,7 @@ class Stocker(object):
         self.queries = []
 
     def build_queries(self, depth=1):
+    	"""creates google queries based on the provided stocks and news sources"""
         for t in self.tickers:
             for s in self.sources:
                 q1 = t + '+' + s + '+' + 'stock+articles'
@@ -94,11 +87,14 @@ class Stocker(object):
                 self.queries.append([t, s, q1])
         logger.debug('built {} queries'.format(len(self.queries)))
 
-    def stock(self, gui=True):
-        self.build_queries()
+    def stock(self, gui=True, nodes=False, json=True, csv=True, depth=1):
+    	"""main function for the class. Begins the worker to get the information based on the queries given"""
+        self.build_queries(depth=depth)
         total = len(self.queries)
-        if gui: t = trange(len(self.queries), total=total, unit='query', desc='Configuring',dynamic_ncols=True, 
-                                                                                leave=True, miniters=1)
+       	random.shuffle(self.queries)
+        if total == 0: return None
+        if gui: t = trange(len(self.queries), total=total, unit='query', desc=self.queries[0][0], postfix={'source':self.queries[0][1]},dynamic_ncols=True, 
+                                                                                        leave=True, miniters=1)
         else: t = range(len(self.queries)) 
         for i in t:
             q = self.queries[i]
@@ -109,17 +105,18 @@ class Stocker(object):
             
             worker = Worker(q[0], q[1], q[2])
             worker.configure(self.json_path)
-            worker.work()
+            worker.start()
             node_dict = worker.dictify()
             if not (node_dict is None): 
-                self.write_csv(node_dict)
-                self.write_json(worker.urls, worker.ticker)
+                if csv:		self.write_csv(node_dict)
+                if json:	self.write_json(worker.urls, worker.ticker)
         if gui:
             t.close()
+        if nodes: return worker.nodes
         print('\nDone.')
 
     def write_csv(self, node_dict):
-        # node_dict = list(map(lambda n: n.dictify(), list(filter(lambda n: n.date != None , nodes))))
+    	"""writes the data gathered to a csv file"""
         write_mode = 'a' if os.path.exists(self.csv_path) else 'w'
         with open(self.csv_path, write_mode) as f:
             fieldnames = sorted(node_dict[0].keys()) # sort to ensure they are the same order every time
@@ -129,6 +126,7 @@ class Stocker(object):
             writer.writerows(node_dict)
 
     def write_json(self, urls, ticker):
+    	"""writes parsed links to JSON file to avoid reparsing"""
         write_mode = 'r' if os.path.exists(self.json_path) else 'w' 
         t = ticker.upper()
         with open(self.json_path, write_mode) as f:
@@ -136,7 +134,7 @@ class Stocker(object):
             else: data = json.load(f)
         
         # remove homepages
-        urls = filter(lambda url: not (urlparse(url).path.split('/')[1].lower() in ['quote', 'symbol', 'finance']),
+        urls = filter(lambda url: not (urlparse(url).path.split('/')[1].lower() in homepages()),
                filter(lambda url: url[:4] == 'http', urls)) 
 
         # add urls to json
@@ -152,12 +150,13 @@ class Stocker(object):
             json.dump(data, f, indent=4)
 
     def get_name(self, ticker):
-        """
-        Convert the ticker to the associated company name
-        """
-        url = 'http://d.yimg.com/autoc.finance.yahoo.com/autoc?query={}&region=1&lang=en'.format(ticker)
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        result = requests.get(url).json()
+        """convert the ticker to the associated company name"""
+        url = 'http://d.yimg.com/autoc.finance.yahoo.com/autoc?query='+ticker.upper()+'&region=1&lang=en'
+    	headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+        try:
+        	result = requests.get(url, headers=headers).json()
+        	result.raise_for_status()
+        except: return None
 
         for x in result['ResultSet']['Result']:
             if x['symbol'] == ticker:
@@ -172,6 +171,11 @@ class Worker(object):
         self.urls = []                  # array (string)
         self.nodes = []                 # array (WebNode())
 
+    def __str__(self): return self.query
+
+    # def __repr__(self):
+    # def __eq__(self):
+
     def configure(self, json_path):
         if not os.path.exists(json_path): return 
         with open(json_path, 'r') as f:
@@ -179,7 +183,7 @@ class Worker(object):
         self.urls = data[self.ticker] if self.ticker in data else []
         logger.debug('configuring urls with a length of {}'.format(len(self.urls)))
 
-    def work(self):
+    def start(self):
         self.get_urls()
         self.build_nodes()
 
@@ -217,15 +221,15 @@ class Worker(object):
         return list(map(lambda node: {  'ticker': self.ticker,
                                         'sector': node.sector,
                                         'industry': node.industry,
-                                        # 'article': node.article,
+                                        'article': node.article,
                                         'url': node.url,
                                         'pubdate': node.pubdate,
                                         # 'sentences': node.sentences,
                                         # 'words': node.words,
-                                        'polarity': node.polarity,
-                                        'subjectivity': node.subjectivity,
-                                        'negative': node.negative,
-                                        'positive': node.positive,
-                                        'priceT0': 0.0,
-                                        'priceT1': 0.0,
+                                        # 'polarity': node.polarity,
+                                        # 'subjectivity': node.subjectivity,
+                                        # 'negative': node.negative,
+                                        # 'positive': node.positive,
+                                        # 'priceT0': 0.0,
+                                        # 'priceT1': 0.0,
                                         'Class': 0 }, self.nodes))
