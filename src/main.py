@@ -5,7 +5,7 @@ Author: David Wallach
 This function gathers all of the stock tickers and sources to call datamine.py to fill in the 
 data.csv file
 """
-import re, time, logging
+import re, time, logging, json
 import sys
 import requests
 from bs4 import BeautifulSoup
@@ -20,8 +20,17 @@ def gather_data():
     """
     # tickers = snp_500()
     # sources = valid_sources()
-    tickers = ['AAPL', 'GOOG', 'GPRO', 'TSLA', 'APRN', 'FB', 'NVDA', 'SNAP', 'SPY', 'NFLX', 'AMZN', 'AMD'].extend(
-                                                                            NYSE_Top100()).extend(NASDAQ_Top100())
+    # nyse, nasdaq = [], []
+    # while len(nyse) == 0: nyse = NYSE_Top100()
+    # while len(nasdaq) == 0: nasdaq = NASDAQ_Top100()
+    stocks_path = '../data/stocks.json'
+    with open(stocks_path, 'r') as f:
+        data = json.load(f)
+    
+    tickers = ['AAPL', 'GOOG', 'GPRO', 'TSLA', 'APRN', 'FB', 'NVDA', 'SNAP', 'SPY', 'NFLX', 'AMZN', 'AMD']
+    tickers += data['NYSE100']
+    tickers += data['NASDAQ100']
+    tickers += data['SNP500']
     sources = ['seekingalpha', 'bloomberg', 'reuters']
     csv_path = "../data/examples.csv"
     json_path = "../data/links.json"

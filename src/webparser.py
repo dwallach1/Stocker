@@ -2,8 +2,10 @@ import re, logging
 from urlparse import urlparse
 import requests
 from datetime import datetime, timedelta
+from pytz import timezone
 import dateutil.parser as dateparser
-# import numpy as np
+import time
+import numpy as np
 from bs4 import BeautifulSoup as BS
 
 logger = logging.getLogger(__name__)
@@ -132,7 +134,7 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 			r = requests.get(google_url)
 			r.raise_for_status()
 		except requests.exceptions.RequestException as e:
-			print('Web Scraper Error from google_url: {}'.format(str(e)))
+			logger.warn('Web Scraper Error from google_url: {}'.format(str(e)))
 			return WebNode(url, pubdate, article, words, sentences, industry, sector)
 		s = BS(r.text, 'html.parser')
 		
@@ -152,14 +154,15 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 	
 	return WebNode(url, pubdate, article, words, sentences, industry, sector, classification)
 
-def classify(pubdate, ticker, range=20):
+def classify(pubdate, ticker, offset=10):
 	not_found = -1000
 	
 	today = datetime.today()
+	today, pubdate = today.replace(tzinfo=None), pubdate.replace(tzinfo=None)
 	margin = timedelta(days = 20) 
-	if not (today - margin <= pubdate): return not_found
+	if ((today - margin) > pubdate): return not_found
 
-	url = 'https://www.google.com/finance/getprices?i=60&p=1d&f=d,o,h,l,c,v&df=cpct&q={}'.format(ticker.upper())
+	url = 'https://www.google.com/finance/getprices?i=60&p=20d&f=d,o,h,l,c,v&df=cpct&q={}'.format(ticker.upper())
 	try:
 		req = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
 		req.raise_for_status()
@@ -178,39 +181,43 @@ def classify(pubdate, ticker, range=20):
 		l = line.split(',')
 		date, close, high, low, openp, volume = l[0], l[1], l[2], l[3], l[4], l[5]
 		if date[0] == 'a':
-			# curr_date = datetime.fromtimestamp(int(date[1:]))
 			curr_date = str2unix(date[1:])
 			dates.append(curr_date)
-			print ('setting date to ' + str(curr_date.month) + ' ' + str(curr_date.day) + ' '+ str(curr_date.hour)+ ' ' + str(curr_date.minute))
+			logger.debug('setting date to ' + str(curr_date.month) + ' ' + str(curr_date.day) + ' '+ str(curr_date.hour)+ ' ' + str(curr_date.minute))
 		else: 
 			dates.append(curr_date + timedelta(minutes=int(date)))
 			highp.append(float(high))
 			lowp.append(float(low))
 
-	print ('pubdate is ' + str(pubdate))
-	print ('length of dates is %d' % len(dates))
-
 	bitmap = map(lambda timestamp: same_date(timestamp, pubdate), dates)
-	print (bitmap)
-	print ('sum of bitmap is %d' % sum(bitmap))
-	# print (map(lambda d: d.minute ,dates[100:300]))
-	try:
-		idx = bitmap.index(True)
-		if idx + 5 < len(bitmap): 	return np.sign((highp[idx+5] -lowp[idx+5]) - (highp[idx] -lowp[idx]))
-		elif idx + 4 < len(bitmap): return np.sign((highp[idx+4] -lowp[idx+4]) - (highp[idx] -lowp[idx]))
-		elif idx + 3 < len(bitmap): return np.sign((highp[idx+3] -lowp[idx+3]) - (highp[idx] -lowp[idx]))
-		elif idx + 2 < len(bitmap): return np.sign((highp[idx+2] -lowp[idx+2]) - (highp[idx] -lowp[idx]))
-		elif idx + 1 < len(bitmap): return np.sign((highp[idx+1] -lowp[idx+1]) - (highp[idx] -lowp[idx]))
-		else: return not_found
-	except: return not_found
-
-
+	if sum(bitmap) == 0: map(lambda timestamp: same_date(timestamp, pubdate+timedelta(hours=3)), dates) # possibly date was in PDT time
+	if (sum(bitmap) > 1): return not_found # this is an error case
+	if sum(bitmap) == 0: 
+		logger.warn('could not find associated stock price for ticker: %s' % ticker)
+		return not_found
+	
+	idx = bitmap.index(1) # need to wrap in try b/c if not found --> errors out
+	now = datetime.now()
+	market_close = datetime(year=now.year, month=now.month, day=now.day, hour=16, minute=30)
+	diff = (market_close.minute - dates[idx].minute)
+	# print('date is ' + str(dates[idx]))
+	# print ('price of pubdate is %d price of pubdate+offset is %d' % (highp[idx], highp[idx+offset]))
+	# print('market_close is ' + str(market_close))
+	# print('diff is %d' % diff)
+	if prior_market_close((dates[idx] + timedelta(minutes=offset)), market_close): return np.sign(highp[idx+offset] - highp[idx])
+	elif diff > 0: 	return np.sign(highp[idx+diff] - highp[idx])
+	else: return not_found
+	
 def same_date(date1, date2):
-	if (date1.month == date2.month) and (date1.day == date2.day) and (date1.minute == date2.minute): return 1
+	if (date1.month == date2.month) and (date1.day == date2.day) and (date1.hour == date2.hour) and (date1.minute == date2.minute): return 1
 	return 0
 
+def prior_market_close(date1, date2):
+	if date1.hour < date2.hour: return True
+	elif date1.minute < date2.minute: return True
+	return False
+
 def str2unix(datestr):
-	from pytz import timezone
 	date_UTC = datetime.fromtimestamp(int(datestr))	#	dates come in Unix time and converted to local 
 	date1, date2 = datetime.now(timezone('US/Eastern')), datetime.now()
 	rdelta = date1.hour - date2.hour 					#	convert local time to EST (the timezone the data was recorded in)
@@ -218,7 +225,7 @@ def str2unix(datestr):
 
 # TESTS
 
-print(classify(datetime.now() - timedelta(hours=5), 'ua'))
+# print(classify(datetime.now() - timedelta(days= 5, hours=9), 'tsla'))
 
 
 # url = 'https://www.bloomberg.com/press-releases/2017-07-13/top-5-companies-in-the-global-consumer-electronics-and-telecom-products-market-by-bizvibe'
@@ -260,6 +267,4 @@ print(classify(datetime.now() - timedelta(hours=5), 'ua'))
 # url = 
 # url = 
 # print(scrape(url, 'thestreet'))
-
-
 

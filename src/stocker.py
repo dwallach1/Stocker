@@ -68,8 +68,7 @@ def SNP_500():
 def NYSE_Top100():
 	url = 'http://online.wsj.com/mdc/public/page/2_3021-activnyse-actives.html'
 	try:
-		headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
-		req = requests.get(url, headers=headers)
+		req = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
 		req.raise_for_status()
 	except: return None
 	soup = BS(req.content, 'html.parser')
@@ -78,7 +77,6 @@ def NYSE_Top100():
 def NASDAQ_Top100():
 	url = 'http://online.wsj.com/mdc/public/page/2_3021-activnnm-actives.html'
 	try:
-		headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
 		req = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
 		req.raise_for_status()
 	except: return None
@@ -245,7 +243,5 @@ class Worker(object):
                                         'article': node.article,
                                         'url': node.url,
                                         'pubdate': node.pubdate,
-                                        # 'sentences': node.sentences,
-                                        # 'words': node.words,
-                                        'Class': node.classification 
+                                        'class': node.classification 
                                         }, self.nodes))
