@@ -9,7 +9,7 @@ import re, time, logging
 import sys
 import requests
 from bs4 import BeautifulSoup
-from stocker import Stocker, snp_500, valid_sources
+from stocker import Stocker, SNP_500, NYSE_Top100, NASDAQ_Top100, valid_sources
 
 
 def gather_data():
@@ -20,8 +20,9 @@ def gather_data():
     """
     # tickers = snp_500()
     # sources = valid_sources()
-    tickers = ["AAPL", "GOOG", "GPRO", "TSLA"]
-    sources = ['seekingalpha', 'bloomberg']
+    tickers = ['AAPL', 'GOOG', 'GPRO', 'TSLA', 'APRN', 'FB', 'NVDA', 'SNAP', 'SPY', 'NFLX', 'AMZN', 'AMD'].extend(
+                                                                            NYSE_Top100()).extend(NASDAQ_Top100())
+    sources = ['seekingalpha', 'bloomberg', 'reuters']
     csv_path = "../data/examples.csv"
     json_path = "../data/links.json"
     dm = Stocker(tickers, sources, csv_path, json_path)

@@ -47,11 +47,13 @@ class Loading:
         self.busy = False
         time.sleep(1)
 
-def snp_500():
+def SNP_500():
     # loader = Loading()
     # loader.start()
-    headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
-    req = requests.get('http://en.wikipedia.org/wiki/List_of_S%26P_500_companies', headers=headers)
+    try:
+    	headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+    	req = requests.get('http://en.wikipedia.org/wiki/List_of_S%26P_500_companies', headers=headers)
+    except: return None
     soup = BS(req.content, 'lxml')
     table = soup.find('table', {'class': 'wikitable sortable'})
     tickers = []
@@ -62,6 +64,26 @@ def snp_500():
             tickers.append(ticker)
     # loader.stop()
     return tickers
+
+def NYSE_Top100():
+	url = 'http://online.wsj.com/mdc/public/page/2_3021-activnyse-actives.html'
+	try:
+		headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+		req = requests.get(url, headers=headers)
+		req.raise_for_status()
+	except: return None
+	soup = BS(req.content, 'html.parser')
+	return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
+
+def NASDAQ_Top100():
+	url = 'http://online.wsj.com/mdc/public/page/2_3021-activnnm-actives.html'
+	try:
+		headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+		req = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+		req.raise_for_status()
+	except: return None
+	soup = BS(req.content, 'html.parser')
+	return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
 
 def valid_sources(): return ['bloomberg', 'seekingalpha', 'reuters', 'thestreet', 'investopedia']
 
@@ -203,7 +225,6 @@ class Worker(object):
         new_urls = []
         for item in soup.find_all(attrs={'class' : 'g'}): new_urls.append(reg.match(item.a['href'][7:]).group()[:-4])
         self.urls = self.urls + list(set(new_urls) - set(self.urls))
-        #list(filter(lambda url: url not in self.urls, urls))
 
     def build_nodes(self):
         for url in self.urls:
@@ -226,10 +247,5 @@ class Worker(object):
                                         'pubdate': node.pubdate,
                                         # 'sentences': node.sentences,
                                         # 'words': node.words,
-                                        # 'polarity': node.polarity,
-                                        # 'subjectivity': node.subjectivity,
-                                        # 'negative': node.negative,
-                                        # 'positive': node.positive,
-                                        # 'priceT0': 0.0,
-                                        # 'priceT1': 0.0,
-                                        'Class': 0 }, self.nodes))
+                                        'Class': node.classification 
+                                        }, self.nodes))
