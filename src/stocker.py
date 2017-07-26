@@ -108,15 +108,15 @@ class Stocker(object):
                 self.queries.append([t, s, q1])
         logger.debug('built {} queries'.format(len(self.queries)))
 
-    def stock(self, gui=True, nodes=False, json=True, csv=True, depth=1, query=True):
+    def stock(self, gui=True, nodes=False, json=True, csv=True, depth=1, query=True, shuffle=True):
     	"""main function for the class. Begins the worker to get the information based on the queries given"""
         if query: self.build_queries(depth=depth)
-        total = len(self.queries)
-       	random.shuffle(self.queries)
+       	if shuffle: random.shuffle(self.queries)
+       	total = len(self.queries)
         if total == 0: return None
-        if gui: t = trange(len(self.queries), total=total, unit='query', desc=self.queries[0][0], postfix={'source':self.queries[0][1]},dynamic_ncols=True, 
-                                                                                        leave=True, miniters=1)
-        else: t = range(len(self.queries)) 
+        if gui: t = trange(total, total=total, unit='query', desc=self.queries[0][0], postfix={'source':self.queries[0][1]},
+        																		dynamic_ncols=True, leave=True, miniters=1)
+        else: t = range(total) 
         for i in t:
             q = self.queries[i]
             if gui:
