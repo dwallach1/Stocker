@@ -22,34 +22,37 @@ from webparser import scrape, homepages
 
 logger = logging.getLogger(__name__)
 
+printer = False
+
 class Loading:
     busy = False
-    def loading_snp(self):
+    def loading(self, text):
         while self.busy:
-            sys.stdout.write('Getting S&P500 Stocks   \r')
+            sys.stdout.write('{}   \r'.format(text))
             sys.stdout.flush()
             time.sleep(1)
-            sys.stdout.write('Getting S&P500 Stocks.  \r')
+            sys.stdout.write('{}.  \r'.format(text))
             sys.stdout.flush()
             time.sleep(1)
-            sys.stdout.write('Getting S&P500 Stocks.. \r')
+            sys.stdout.write('{}.. \r'.format(text))
             sys.stdout.flush()
             time.sleep(1)
-            sys.stdout.write('Getting S&P500 Stocks...\r')
+            sys.stdout.write('{}...\r'.format(text))
             sys.stdout.flush()
             time.sleep(1)
 
-    def start(self):
+    def start(self, text):
         self.busy = True
-        threading.Thread(target=self.loading_snp).start()
+        threading.Thread(target=self.loading_snp, kwargs={'text':text}).start()
 
     def stop(self):
         self.busy = False
         time.sleep(1)
 
 def SNP_500():
-    # loader = Loading()
-    # loader.start()
+    if printer:
+    	loader = Loading()
+    	loader.start('Loading SNP500')
     try:
     	headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
     	req = requests.get('http://en.wikipedia.org/wiki/List_of_S%26P_500_companies', headers=headers)
@@ -62,30 +65,45 @@ def SNP_500():
         if len(col) > 0:
             ticker = str(col[0].string.strip())
             tickers.append(ticker)
-    # loader.stop()
+    if printer: loader.stop()
     return tickers
 
 def NYSE_Top100():
+	if printer: 
+		loader = Loading()
+		loader.start('Loading NYSE100')
 	url = 'http://online.wsj.com/mdc/public/page/2_3021-activnyse-actives.html'
 	try:
 		req = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
 		req.raise_for_status()
 	except: return None
 	soup = BS(req.content, 'html.parser')
+	if printer: loader.stop()
 	return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
 
 def NASDAQ_Top100():
+	if printer:
+		loader = Loading()
+		loader.start('Loading NASDAQ100')
 	url = 'http://online.wsj.com/mdc/public/page/2_3021-activnnm-actives.html'
 	try:
 		req = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
 		req.raise_for_status()
 	except: return None
 	soup = BS(req.content, 'html.parser')
+	if printer: loader.stop()
 	return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
 
 def valid_sources(): return ['bloomberg', 'seekingalpha', 'reuters', 'thestreet', 'investopedia']
 def querify(string): return '+'.join(string.split(' '))
 
+class Query(object):
+	def __init__(self, ticker, source, string):
+        self.ticker = ticker
+        self.source = source
+        self.string = string
+	       
+              
 class Stocker(object):
     """stocker class manages the work for mining data and writing it to a csv file"""
     def __init__(self, tickers, sources, csv_path, json_path):
@@ -97,7 +115,10 @@ class Stocker(object):
 
     def build_queries(self, depth=1):
     	"""creates google queries based on the provided stocks and news sources"""
-        for t in self.tickers:
+        if printer:
+		loader = Loading()
+		loader.start('Building queries')
+	for t in self.tickers:
             for s in self.sources:
                 q1 = t + '+' + s + '+' + 'stock+articles'
                 if depth > 1:
@@ -106,6 +127,7 @@ class Stocker(object):
                         q2 =  '+'.join(map(lambda name: re.sub(r'[^\w\s]','',name), filter(lambda i: i != 'Inc.' ,cname.split(' ')))) + '+' + s + '+stock+news'
                         self.queries.append([t, s, q2])
                 self.queries.append([t, s, q1])
+	if printer: loader.stop()
         logger.debug('built {} queries'.format(len(self.queries)))
 
     def stock(self, gui=True, nodes=False, json=True, csv=True, depth=1, query=True, shuffle=True):
@@ -119,6 +141,7 @@ class Stocker(object):
         else: t = range(total) 
         for i in t:
             q = self.queries[i]
+	    if printer: print('Processing query: {}'.format(q[2]))
             if gui:
                 t.set_description(q[0].upper())
                 t.set_postfix(source=q[1])
@@ -129,7 +152,7 @@ class Stocker(object):
             worker.remove_dups(self.json_path)
             worker.build_nodes()
             node_dict = worker.dictify()
-            if not (node_dict is None): 
+            if not (node_dict is None):
                 if csv:		self.write_csv(node_dict)
                 if json:	self.write_json(worker.urls, worker.ticker)
         if gui:
@@ -225,12 +248,14 @@ class Worker(object):
 
     def build_nodes(self):
         for url in self.urls:
+	    if printer: print('scraping url: {} \r'.format(url))
             node = scrape(url, self.source, ticker=self.ticker)
             if isinstance(node, list):
                 self.urls += filter(lambda url: not(url in self.urls), node)
                 logger.debug('Hit landing page -- crawling for more links')
             elif node != None: self.nodes.append(node)
             else: self.urls.remove(url)
+	if printer: 
         logger.debug('built {} nodes'.format(len(self.nodes)))
 
     def dictify(self): 
