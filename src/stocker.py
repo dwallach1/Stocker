@@ -141,6 +141,7 @@ class Stocker(object):
         else: t = range(total) 
         for i in t:
             q = self.queries[i]
+	    #_ticker, _source, _query = q.ticker, q.source, q.string 
 	    if printer: print('Processing query: {}'.format(q[2]))
             if gui:
                 t.set_description(q[0].upper())
