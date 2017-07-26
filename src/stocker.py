@@ -84,6 +84,7 @@ def NASDAQ_Top100():
 	return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
 
 def valid_sources(): return ['bloomberg', 'seekingalpha', 'reuters', 'thestreet', 'investopedia']
+def querify(string): return '+'.join(string.split(' '))
 
 class Stocker(object):
     """stocker class manages the work for mining data and writing it to a csv file"""
@@ -102,14 +103,14 @@ class Stocker(object):
                 if depth > 1:
                     cname = self.get_name(t) 
                     if not (cname is None):
-                        q2 = s + '+' + '+'.join(map(lambda s: re.sub(r'[^\w\s]','',s), filter(lambda i: i != 'Inc.' ,cname.split(' ')))) + '+news'
+                        q2 =  '+'.join(map(lambda name: re.sub(r'[^\w\s]','',name), filter(lambda i: i != 'Inc.' ,cname.split(' ')))) + '+' + s + '+stock+news'
                         self.queries.append([t, s, q2])
                 self.queries.append([t, s, q1])
         logger.debug('built {} queries'.format(len(self.queries)))
 
-    def stock(self, gui=True, nodes=False, json=True, csv=True, depth=1):
+    def stock(self, gui=True, nodes=False, json=True, csv=True, depth=1, query=True):
     	"""main function for the class. Begins the worker to get the information based on the queries given"""
-        self.build_queries(depth=depth)
+        if query: self.build_queries(depth=depth)
         total = len(self.queries)
        	random.shuffle(self.queries)
         if total == 0: return None
@@ -124,8 +125,9 @@ class Stocker(object):
                 t.update()
             
             worker = Worker(q[0], q[1], q[2])
-            worker.configure(self.json_path)
-            worker.start()
+            worker.get_urls()
+            worker.remove_dups(self.json_path)
+            worker.build_nodes()
             node_dict = worker.dictify()
             if not (node_dict is None): 
                 if csv:		self.write_csv(node_dict)
@@ -196,16 +198,13 @@ class Worker(object):
     # def __repr__(self):
     # def __eq__(self):
 
-    def configure(self, json_path):
+    def remove_dups(self, json_path):
         if not os.path.exists(json_path): return 
         with open(json_path, 'r') as f:
             data = json.load(f)
-        self.urls = data[self.ticker] if self.ticker in data else []
+        parsed_urls = data[self.ticker] if self.ticker in data else []
+        self.urls = filter(lambda url: not(url in parsed_urls), self.urls)
         logger.debug('configuring urls with a length of {}'.format(len(self.urls)))
-
-    def start(self):
-        self.get_urls()
-        self.build_nodes()
 
     def get_urls(self):
         _url = 'https://www.google.co.in/search?site=&source=hp&q='+self.query+'&gws_rd=ssl'
@@ -222,15 +221,14 @@ class Worker(object):
         reg=re.compile('.*&sa=')
         new_urls = []
         for item in soup.find_all(attrs={'class' : 'g'}): new_urls.append(reg.match(item.a['href'][7:]).group()[:-4])
-        self.urls = self.urls + list(set(new_urls) - set(self.urls))
+        self.urls = new_urls
 
     def build_nodes(self):
         for url in self.urls:
             node = scrape(url, self.source, ticker=self.ticker)
             if isinstance(node, list):
-                self.urls = self.urls + list(set(node) - set(self.urls))
+                self.urls += filter(lambda url: not(url in self.urls), node)
                 logger.debug('Hit landing page -- crawling for more links')
-                continue
             elif node != None: self.nodes.append(node)
             else: self.urls.remove(url)
         logger.debug('built {} nodes'.format(len(self.nodes)))

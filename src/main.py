@@ -9,7 +9,7 @@ import re, time, logging, json
 import sys
 import requests
 from bs4 import BeautifulSoup
-from stocker import Stocker, SNP_500, NYSE_Top100, NASDAQ_Top100, valid_sources
+from stocker import Stocker, SNP_500, NYSE_Top100, NASDAQ_Top100, valid_sources, querify
 
 
 def gather_data():
@@ -27,10 +27,10 @@ def gather_data():
     with open(stocks_path, 'r') as f:
         data = json.load(f)
     
-    tickers = ['AAPL', 'GOOG', 'GPRO', 'TSLA', 'APRN', 'FB', 'NVDA', 'SNAP', 'SPY', 'NFLX', 'AMZN', 'AMD']
-    tickers += data['NYSE100']
-    tickers += data['NASDAQ100']
-    tickers += data['SNP500']
+    nyse100, nasdaq100, snp500 = data['NYSE100'], data['NASDAQ100'], data['SNP500']
+    other_stocks = ['AAPL', 'GOOG', 'GPRO', 'TSLA', 'APRN', 'FB', 'NVDA', 'SNAP', 'SPY', 'NFLX', 'AMZN', 'AMD']
+    tickers = nyse100 + nasdaq100 + snp500 + other_stocks
+    # tickers = ['ua']
     sources = ['seekingalpha', 'bloomberg', 'reuters']
     csv_path = "../data/examples.csv"
     json_path = "../data/links.json"

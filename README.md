@@ -1,27 +1,40 @@
 # Stocker
-This Python package initial's intent was to act as a web scraper for financial articles. It is specialized in parsing 
-articles from Bloomberg, SeekingAlpha & Reuters as of writing this. Stocker exports it's findings as a csv file,
-allowing people to easily integrate the findings into machine learning models to make sense of the large amount of data.
+A financial data scraper. Stocker generates google queries to get recent articles and parse them for information. 
+All that stocker needs is a list of stock tickers and a list of sources (that correlate to domain names). To store the 
+information 
 
-An example use case is:
+
+
 
 ```python
-import stocker
-tickers = ['AAPL', 'GOOG', 'GPRO', 'TSLA']		# array of stock tickers (strings)
-sources = ['bloomberg', 'seekingalpha', 'reuters'] 	# specalized sources are : Bloomberg, seekingAlpha, Reuters
+from stocker import Stocker, SNP_500, NYSE_Top100, NASDAQ_Top100, valid_sources, querify
+
+
+# get stock tickers
+nyse, nasdaq = [], [] 
+while len(nyse) == 0: nyse = NYSE_Top100()	# need to poll, because sometime site retuns None
+while len(nasdaq) == 0: nasdaq = NASDAQ_Top100()
+
+# use all specialized sources
+source = valid_sources()
+
+tickers = ['AAPL', 'GOOG', 'GPRO', 'TSLA']		# or define your own set of stock tickers
+sources = ['bloomberg', 'seekingalpha', 'reuters'] # and define own set of sources
 csv_path = '../data/examples.csv'				# path of where to write output (gathered information)
 json_path = '../data/links.json' 				# path of where to write output (for skipping duplicates)
 stocker = Stocker(tickers, sources, csv_path, json_path)	# initalize stocker
 stocker.stock()							# start the stocker
 ```
 
-This project is a personal research project. My goals can be split up into stages:
+Stocker creates queries on its own, based on the stock tickers and sources provided, however, you can define your own
+queries by doing the following.
 
-*__Stage 1__ : explore the correlation between simple financial sentiment analysis and stock price
-*__Stage 2__ : build a neural network given stock prices and articles and see if it can form its own financial dictionary
-			  by placing weights on different words and such
-*__Stage 3__ : if stages 1 & 2 offer anything promising, combine them and see how it performs as an investing strategy
-
+```python
+# define our own queries
+query_strings = ['under armour most recent articles', 'nikes recent stockholders meeting news']
+stocker.queries = map(lambda q: querify(q), query_strings)
+stocker.stock(query=False)
+```
 
 # Modules
 * stocker.py
@@ -34,7 +47,8 @@ This project is a personal research project. My goals can be split up into stage
 - [BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/bs4/doc/)
 - [Requests](http://docs.python-requests.org/en/master/)
 - [nltk](http://www.nltk.org/)
-- [tqdm](https://github.com/tqdm/tqdm) 
+- [tqdm](https://github.com/tqdm/tqdm)
+- [pytz](https://pypi.python.org/pypi/pytz) 
 
 
 # Flags
@@ -49,20 +63,12 @@ This project is a personal research project. My goals can be split up into stage
 * crawl_page=False
 
 
-# Code
-
-The purpose of the overall system is to gather data and use it as input to develop a model
-to classify new, incoming data. To do this, I defined a Node struct that correlated to a training example for the input 
-to the classifier. From here, I used [Quantopian](https://www.quantopian.com) to read the csv file, and get the
-correlated (w/ regards to time) stock price fluctuations to classify the training data. Following this, I backtested the trading logic, and with a few smoothing methods, I was able to get:
-		Return on Investment: 	x%,
-		Sharpe Ratio:			x,
-		Alpha:					x,
-		Beta:					x, 
-
+# Classes
+To store all of the information, every time a url is parsed, a new webnode is generated. After all of the urls are parsed
+for a given query, the batch of webnodes are written to the csv file and the parsed urls are stored in the json file under
+the stocks ticker (uppercase). 
 
 ```python
-import pysentiment as py
 class WebNode(object):
     """represents an entry in data.csv that will be used to train our neural network"""
     def __init__(self, url, pubdate, article, words, sentences, industry='', sector=''):
@@ -73,9 +79,5 @@ class WebNode(object):
         self.sentences = sentences  					# list
         self.industry = industry    					# string
         self.sector = sector       					    # string
-        self.score = ps.LM().get_score(words)			# dict 
-        self.subjectivity = self.score['Subjectivity']	# float
-        self.polarity = self.score['Polarity']			# float
-        self.negative = self.score['Negative']			# float
-        self.positive = self.score['Positive']			# float 
 ```
+
