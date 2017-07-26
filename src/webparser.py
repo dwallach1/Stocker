@@ -183,7 +183,6 @@ def classify(pubdate, ticker, offset=10):
 		if date[0] == 'a':
 			curr_date = str2unix(date[1:])
 			dates.append(curr_date)
-			logger.debug('setting date to ' + str(curr_date.month) + ' ' + str(curr_date.day) + ' '+ str(curr_date.hour)+ ' ' + str(curr_date.minute))
 		else: 
 			dates.append(curr_date + timedelta(minutes=int(date)))
 			highp.append(float(high))
@@ -191,12 +190,12 @@ def classify(pubdate, ticker, offset=10):
 
 	bitmap = map(lambda timestamp: same_date(timestamp, pubdate), dates)
 	if sum(bitmap) == 0: map(lambda timestamp: same_date(timestamp, pubdate+timedelta(hours=3)), dates) # possibly date was in PDT time
-	if (sum(bitmap) > 1): return not_found # this is an error case
+	if sum(bitmap) > 1: return not_found # this is an error case
 	if sum(bitmap) == 0: 
 		logger.warn('could not find associated stock price for ticker: %s' % ticker)
 		return not_found
 	
-	idx = bitmap.index(1) # need to wrap in try b/c if not found --> errors out
+	idx = bitmap.index(1) # at this point, we know there is a match
 	now = datetime.now()
 	market_close = datetime(year=now.year, month=now.month, day=now.day, hour=16, minute=30)
 	diff = (market_close.minute - dates[idx].minute)
@@ -204,7 +203,7 @@ def classify(pubdate, ticker, offset=10):
 	# print ('price of pubdate is %d price of pubdate+offset is %d' % (highp[idx], highp[idx+offset]))
 	# print('market_close is ' + str(market_close))
 	# print('diff is %d' % diff)
-	if prior_market_close((dates[idx] + timedelta(minutes=offset)), market_close): return np.sign(highp[idx+offset] - highp[idx])
+	if pre_mrkt_close((dates[idx] + timedelta(minutes=offset)), market_close): return np.sign(highp[idx+offset] - highp[idx])
 	elif diff > 0: 	return np.sign(highp[idx+diff] - highp[idx])
 	else: return not_found
 	
@@ -212,7 +211,7 @@ def same_date(date1, date2):
 	if (date1.month == date2.month) and (date1.day == date2.day) and (date1.hour == date2.hour) and (date1.minute == date2.minute): return 1
 	return 0
 
-def prior_market_close(date1, date2):
+def pre_mrkt_close(date1, date2):
 	if date1.hour < date2.hour: return True
 	elif date1.minute < date2.minute: return True
 	return False
