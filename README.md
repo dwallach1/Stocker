@@ -7,16 +7,7 @@ If you do not want one of these (or either), you can call stocker with the flags
 
 
 ```python
-from stocker import Stocker, SNP_500, NYSE_Top100, NASDAQ_Top100, valid_sources, querify
-
-
-# get stock tickers
-nyse, nasdaq = [], [] 
-while len(nyse) == 0: nyse = NYSE_Top100()	# need to poll, because sometime site retuns None
-while len(nasdaq) == 0: nasdaq = NASDAQ_Top100()
-
-# use all specialized sources
-sources = valid_sources()
+from stocker import Stocker
 
 tickers = ['AAPL', 'GOOG', 'GPRO', 'TSLA']		# or define your own set of stock tickers
 sources = ['bloomberg', 'seekingalpha', 'reuters'] # and define own set of sources
@@ -30,10 +21,37 @@ Stocker creates queries on its own, based on the stock tickers and sources provi
 queries by doing the following.
 
 ```python
+from stocker import querify
 # define our own queries
 query_strings = ['under armour most recent articles', 'nikes recent stockholders meeting news']
 stocker.queries = map(lambda q: querify(q), query_strings)
 stocker.stock(query=False)
+```
+This package also has built in functions for getting popular stocks as well as a list of the sources that Stocker has been 
+tested to work for.
+
+```python
+from stocker import SNP_500, NYSE_Top100, NASDAQ_Top100, valid_sources
+
+# get stock tickers
+nyse, nasdaq = [], [] 
+while len(nyse) == 0: nyse = NYSE_Top100()	# need to poll, because sometime site retuns None
+while len(nasdaq) == 0: nasdaq = NASDAQ_Top100()
+snp500 = SNP_500()
+
+tickers = nyse + nasdaq + snp500 # list of 700 stock tickers
+sources = valid_sources() # use all specialized sources
+```
+
+If you want to use stocker as just a means to query google and get a list of results, you can do so.
+
+```python
+from stocker import Googler
+
+# Googler takes in a string (what you would type in the search bar) and returns a list of urls generated from the query
+# if an error occurs, Googler returns None
+
+results = Googler('What is there to do in Berkeley?')
 ```
 
 # Modules
@@ -63,10 +81,15 @@ stocker.stock(query=False)
 * crawl_page=False
 
 
-# Classes
+# Storing Query Data
 To store all of the information, every time a url is parsed, a new webnode is generated. After all of the urls are parsed
 for a given query, the batch of webnodes are written to the csv file and the parsed urls are stored in the json file under
-the stocks ticker (uppercase). 
+the stocks ticker (uppercase). Along with the WebNode fields, the stock's ticker is included in each row as well as classification.
+The classification is based on the stock price fluctuations of the associated ticker over a given time interval (default 10 minutes). If 
+the stock's price increased, the classification is +1, decreased: -1, and neutral: 0. I am using Google's API for the 
+stock prices, they only offer free data (at the minute interval) for the most recent 14 weekdays. For this reason, if there was no 
+associated stock price change (becasue the article was published before the past 14 weekdays, I assign the classification a value of 
+-1000 to indicate 'not found'.
 
 ```python
 class WebNode(object):
