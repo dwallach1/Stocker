@@ -1,8 +1,8 @@
 # Stocker
 A financial data scraper. Stocker generates google queries to get recent articles and parse them for information. 
 All that stocker needs is a list of stock tickers and a list of sources (that correlate to domain names). To store the 
-information 
-
+information you can provide a csv path and to make sure you do not parse the same urls, you can provide a json path. 
+If you do not want one of these (or either), you can call stocker with the flags csv=False or json=False. 
 
 
 
@@ -16,7 +16,7 @@ while len(nyse) == 0: nyse = NYSE_Top100()	# need to poll, because sometime site
 while len(nasdaq) == 0: nasdaq = NASDAQ_Top100()
 
 # use all specialized sources
-source = valid_sources()
+sources = valid_sources()
 
 tickers = ['AAPL', 'GOOG', 'GPRO', 'TSLA']		# or define your own set of stock tickers
 sources = ['bloomberg', 'seekingalpha', 'reuters'] # and define own set of sources
