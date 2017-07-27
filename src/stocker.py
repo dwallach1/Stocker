@@ -132,8 +132,7 @@ class Stocker(object):
             if not (node_dict is None): 
                 if csv:		self.write_csv(node_dict)
                 if json:	self.write_json(worker.urls, worker.ticker)
-        if gui:
-            t.close()
+        if gui: t.close()
         if nodes: return worker.nodes
         print('\nDone.')
 
