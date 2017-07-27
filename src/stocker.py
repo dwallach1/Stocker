@@ -22,7 +22,7 @@ from webparser import scrape, homepages
 
 logger = logging.getLogger(__name__)
 
-printer = False
+printer = True
 
 class Loading:
     busy = False
@@ -43,19 +43,26 @@ class Loading:
 
     def start(self, text):
         self.busy = True
-        threading.Thread(target=self.loading_snp, kwargs={'text':text}).start()
+        threading.Thread(target=self.loading, kwargs={'text':text}).start()
 
     def stop(self):
         self.busy = False
         time.sleep(1)
 
+def sysprint(text):
+    sys.stdout.flush()
+    sys.stdout.write('{}\r'.format(text))
+    sys.stdout.flush()
+    
+
 def SNP_500():
     if printer:
-    	loader = Loading()
-    	loader.start('Loading SNP500')
+        loader = Loading()
+        loader.start('Loading SNP500')
     try:
-    	headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
-    	req = requests.get('http://en.wikipedia.org/wiki/List_of_S%26P_500_companies', headers=headers)
+        headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        req = requests.get('http://en.wikipedia.org/wiki/List_of_S%26P_500_companies', headers=headers)
     except: return None
     soup = BS(req.content, 'lxml')
     table = soup.find('table', {'class': 'wikitable sortable'})
@@ -69,40 +76,40 @@ def SNP_500():
     return tickers
 
 def NYSE_Top100():
-	if printer: 
-		loader = Loading()
-		loader.start('Loading NYSE100')
-	url = 'http://online.wsj.com/mdc/public/page/2_3021-activnyse-actives.html'
-	try:
-		req = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
-		req.raise_for_status()
-	except: return None
-	soup = BS(req.content, 'html.parser')
-	if printer: loader.stop()
-	return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
+    if printer: 
+        loader = Loading()
+        loader.start('Loading NYSE100')
+    url = 'http://online.wsj.com/mdc/public/page/2_3021-activnyse-actives.html'
+    try:
+        req = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+        req.raise_for_status()
+    except: return None
+    soup = BS(req.content, 'html.parser')
+    if printer: loader.stop()
+    return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
 
 def NASDAQ_Top100():
-	if printer:
-		loader = Loading()
-		loader.start('Loading NASDAQ100')
-	url = 'http://online.wsj.com/mdc/public/page/2_3021-activnnm-actives.html'
-	try:
-		req = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
-		req.raise_for_status()
-	except: return None
-	soup = BS(req.content, 'html.parser')
-	if printer: loader.stop()
-	return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
+    if printer:
+        loader = Loading()
+        loader.start('Loading NASDAQ100')
+    url = 'http://online.wsj.com/mdc/public/page/2_3021-activnnm-actives.html'
+    try:
+        req = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+        req.raise_for_status()
+    except: return None
+    soup = BS(req.content, 'html.parser')
+    if printer: loader.stop()
+    return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
 
 def valid_sources(): return ['bloomberg', 'seekingalpha', 'reuters', 'thestreet', 'investopedia']
 def querify(string): return '+'.join(string.split(' '))
 
 class Query(object):
-	def __init__(self, ticker, source, string):
+    def __init__(self, ticker, source, string):
         self.ticker = ticker
         self.source = source
         self.string = string
-	       
+           
               
 class Stocker(object):
     """stocker class manages the work for mining data and writing it to a csv file"""
@@ -114,54 +121,57 @@ class Stocker(object):
         self.queries = []
 
     def build_queries(self, depth=1):
-    	"""creates google queries based on the provided stocks and news sources"""
+        """creates google queries based on the provided stocks and news sources"""
         if printer:
-		loader = Loading()
-		loader.start('Building queries')
-	for t in self.tickers:
+            loader = Loading()
+            loader.start('Building queries')
+        for t in self.tickers:
             for s in self.sources:
-                q1 = t + '+' + s + '+' + 'stock+articles'
+                string1 = t + '+' + s + '+' + 'stock+articles'
                 if depth > 1:
                     cname = self.get_name(t) 
                     if not (cname is None):
-                        q2 =  '+'.join(map(lambda name: re.sub(r'[^\w\s]','',name), filter(lambda i: i != 'Inc.' ,cname.split(' ')))) + '+' + s + '+stock+news'
-                        self.queries.append([t, s, q2])
-                self.queries.append([t, s, q1])
-	if printer: loader.stop()
+                        string2 =  '+'.join(map(lambda name: re.sub(r'[^\w\s]','',name), filter(lambda i: i != 'Inc.' ,cname.split(' ')))) + '+' + s + '+stock+news'
+                        self.queries.append(Query(t, s, string2))
+                self.queries.append(Query(t, s, string1))
+        if printer: loader.stop()
         logger.debug('built {} queries'.format(len(self.queries)))
 
     def stock(self, gui=True, nodes=False, json=True, csv=True, depth=1, query=True, shuffle=True):
-    	"""main function for the class. Begins the worker to get the information based on the queries given"""
+        """main function for the class. Begins the worker to get the information based on the queries given"""
         if query: self.build_queries(depth=depth)
-       	if shuffle: random.shuffle(self.queries)
-       	total = len(self.queries)
+        if shuffle: random.shuffle(self.queries)
+        total = len(self.queries)
         if total == 0: return None
-        if gui: t = trange(total, total=total, unit='query', desc=self.queries[0][0], postfix={'source':self.queries[0][1]},
-        																		dynamic_ncols=True, leave=True, miniters=1)
+        if gui: t = trange(total, total=total, unit='query', desc=self.queries[0].ticker, postfix={'source':self.queries[0].source},
+                                                                                dynamic_ncols=True, leave=True, miniters=1)
         else: t = range(total) 
         for i in t:
             q = self.queries[i]
-	    #_ticker, _source, _query = q.ticker, q.source, q.string 
-	    if printer: print('Processing query: {}'.format(q[2]))
+            #_ticker, _source, _query = q.ticker, q.source, q.string 
+            if printer: sysprint('Processing query: {}'.format(q.string))
+            logger.debug('Processing query: {}'.format(q.string))
             if gui:
-                t.set_description(q[0].upper())
-                t.set_postfix(source=q[1])
+                t.set_description(q.ticker.upper())
+                t.set_postfix(source=q.source)
                 t.update()
             
-            worker = Worker(q[0], q[1], q[2])
+            worker = Worker(q.ticker, q.source, q.string)
             worker.get_urls()
             worker.remove_dups(self.json_path)
             worker.build_nodes()
             node_dict = worker.dictify()
             if not (node_dict is None):
-                if csv:		self.write_csv(node_dict)
-                if json:	self.write_json(worker.urls, worker.ticker)
+                if csv:     self.write_csv(node_dict)
+                if json:    self.write_json(worker.urls, worker.ticker)
         if gui: t.close()
         if nodes: return worker.nodes
         print('\nDone.')
 
     def write_csv(self, node_dict):
-    	"""writes the data gathered to a csv file"""
+        """writes the data gathered to a csv file"""
+        if printer: sysprint('writing {} nodes to csv'.format(len(node_dict)))
+        logger.debug('writing {} nodes to csv '.format(len(node_dict)))
         write_mode = 'a' if os.path.exists(self.csv_path) else 'w'
         with open(self.csv_path, write_mode) as f:
             fieldnames = sorted(node_dict[0].keys()) # sort to ensure they are the same order every time
@@ -171,7 +181,9 @@ class Stocker(object):
             writer.writerows(node_dict)
 
     def write_json(self, urls, ticker):
-    	"""writes parsed links to JSON file to avoid reparsing"""
+        """writes parsed links to JSON file to avoid reparsing"""
+        if printer: sysprint('writing {} links to csv'.format(len(urls)))
+        logger.debug('writing {} links to csv'.format(len(urls)))
         write_mode = 'r' if os.path.exists(self.json_path) else 'w' 
         t = ticker.upper()
         with open(self.json_path, write_mode) as f:
@@ -197,10 +209,11 @@ class Stocker(object):
     def get_name(self, ticker):
         """convert the ticker to the associated company name"""
         url = 'http://d.yimg.com/autoc.finance.yahoo.com/autoc?query='+ticker.upper()+'&region=1&lang=en'
-    	headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+        # headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+        headers = {'User-Agent': 'Mozilla/5.0'}
         try:
-        	result = requests.get(url, headers=headers).json()
-        	result.raise_for_status()
+            result = requests.get(url, headers=headers).json()
+            result.raise_for_status()
         except: return None
 
         for x in result['ResultSet']['Result']:
@@ -227,11 +240,11 @@ class Worker(object):
             data = json.load(f)
         parsed_urls = data[self.ticker] if self.ticker in data else []
         self.urls = filter(lambda url: not(url in parsed_urls), self.urls)
-        logger.debug('configuring urls with a length of {}'.format(len(self.urls)))
 
     def get_urls(self):
         _url = 'https://www.google.co.in/search?site=&source=hp&q='+self.query+'&gws_rd=ssl'
         try:
+            time.sleep(15)
             headers = {'User-Agent': 'Mozilla/5.0'}
             req = requests.get(_url, headers=headers)
             req.raise_for_status()
@@ -247,16 +260,17 @@ class Worker(object):
         self.urls = new_urls
 
     def build_nodes(self):
-        for url in self.urls:
-	    if printer: print('scraping url: {} \r'.format(url))
+        j = '.'
+        for i, url in enumerate(self.urls):
+            if printer: sysprint('parsing urls for query: {}'.format(self.query) + j*(i+1 % 3))
             node = scrape(url, self.source, ticker=self.ticker)
             if isinstance(node, list):
                 self.urls += filter(lambda url: not(url in self.urls), node)
                 logger.debug('Hit landing page -- crawling for more links')
             elif node != None: self.nodes.append(node)
             else: self.urls.remove(url)
-	if printer: 
-        logger.debug('built {} nodes'.format(len(self.nodes)))
+        if printer: sysprint ('built {} nodes to write to disk'.format(len(self.nodes)))
+        logger.debug('built {} nodes to write to disk'.format(len(self.nodes)))
 
     def dictify(self): 
         if len(self.nodes) == 0: return None 

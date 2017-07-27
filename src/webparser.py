@@ -102,7 +102,8 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 	if not url_obj: return None
 	if not validate_url(url_obj, source, curious=curious): return None    
 	try:
-		headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+		time.sleep(15)
+		headers = {'User-Agent': 'Mozilla/5.0'}
 		article_req = requests.get(url, headers=headers)
 		article_req.raise_for_status()
 	except requests.exceptions.RequestException as e:
@@ -131,13 +132,14 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 	if ticker:
 		google_url = 'https://www.google.com/finance?&q='+ticker
 		try: 
+			time.sleep(15)
 			r = requests.get(google_url)
 			r.raise_for_status()
 		except requests.exceptions.RequestException as e:
 			logger.warn('Web Scraper Error from google_url: {}'.format(str(e)))
 			return WebNode(url, pubdate, article, words, sentences, industry, sector)
-		s = BS(r.text, 'html.parser')
 		
+		s = BS(r.text, 'html.parser')
 		# container = s.find('div', attrs= {'class':'sfe-section'}).findAll('a')
 		container = s.find_all('a')
 		next_ = False
@@ -164,6 +166,7 @@ def classify(pubdate, ticker, offset=10):
 
 	url = 'https://www.google.com/finance/getprices?i=60&p=20d&f=d,o,h,l,c,v&df=cpct&q={}'.format(ticker.upper())
 	try:
+		time.sleep(15)
 		req = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
 		req.raise_for_status()
 	except: return not_found
