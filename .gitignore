@@ -1,9 +1,6 @@
 *.pyc
-*.csv
-*.json
 *.txt
 .idea
 old.py
 test/
 old/
-data/
