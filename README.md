@@ -11,7 +11,7 @@ parameters out when initalizing a Stocker instance.
 from stocker import Stocker
 
 tickers = ['AAPL', 'GOOG', 'GPRO', 'TSLA']		# or define your own set of stock tickers
-sources = ['bloomberg', 'seekingalpha', 'reuters'] # and define own set of sources
+sources = ['bloomberg', 'seekingalpha', 'reuters']  # and define own set of sources
 csv_path = '../data/examples.csv'				# path of where to write output (gathered information)
 json_path = '../data/links.json' 				# path of where to write output (for skipping duplicates)
 stocker = Stocker(tickers, sources, csv_path, json_path)	# initalize stocker
@@ -25,7 +25,13 @@ queries.
 from stocker import querify
 # define our own queries
 query_strings = ['under armour most recent articles', 'nikes recent stockholders meeting news']
-stocker.queries = map(lambda q: querify(q), query_strings)
+ticker = 'SNAP'
+stocker.queries = map(lambda string: querify(ticker, None, string), query_strings)
+stocker.stock(query=False, curious=True)
+
+# or if you want to make sure they are from a certain source
+source = 'bloomberg'
+stocker.queries = map(lambda string: querify(ticker, source, string), query_strings)
 stocker.stock(query=False)
 ```
 This package also has built in functions for getting popular stocks as well as a list of the sources that Stocker has been 
@@ -104,6 +110,6 @@ class WebNode(object):
         self.words = words          					# list
         self.sentences = sentences  					# list
         self.industry = industry    					# string
-        self.sector = sector       					    # string
+        self.sector = sector       					   # string
 ```
 
