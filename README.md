@@ -2,7 +2,8 @@
 A financial data scraper. Stocker generates google queries to get recent articles and parse them for information. 
 All that stocker needs is a list of stock tickers and a list of sources (that correlate to domain names). To store the 
 information you can provide a csv path and to make sure you do not parse the same urls, you can provide a json path. 
-If you do not want one of these (or either), you can call stocker with the flags csv=False or json=False. 
+If you do not want one of these (or either), you can call stocker with the flags csv=False or json=False and leave the path
+parameters out when initalizing a Stocker instance. 
 
 
 
@@ -18,7 +19,7 @@ stocker.stock()							# start the stocker
 ```
 
 Stocker creates queries on its own, based on the stock tickers and sources provided, however, you can define your own
-queries by doing the following.
+queries.
 
 ```python
 from stocker import querify
@@ -56,8 +57,8 @@ results = Googler('What is there to do in Berkeley?')
 
 # Modules
 * __stocker.py__ : manages the overall process, telling webparser which links to parse and takes care of writing the data to disk,
-generating queries and handling user flags
-* __webparser.py__ : does the dirty work of parsing articles and storing all of the information in a WebNode
+generating queries and handling user flags.
+* __webparser.py__ : does the dirty work of parsing articles and storing all of the information in a WebNode.
 * __finsent.py__ : after using stocker and webparser to generate a csv file of data, finsent can be used to create and a train
 a sentiment analysis classifier.
 
@@ -75,7 +76,8 @@ a sentiment analysis classifier.
 * csv=True : tells stocker if it should write the output to a csv file
 * json=True : tells stocker if it should write the newly parsed links to a json file to avoid duplicates
 * curious=False : is set to true, stocker won't ensure that the link it is parsing is from the source field of the query
-* industry=None : when not None,
+* industry=True : looks up and store the industry associated with the ticker 
+* sector=True : looks up and store the industry associated with the ticker
 * date_checker=True : forces each article to have a date; if no date and date_checker is set to true, it will return None
 * length_checker=False : forces each article to have a word count of at least min_length
 * min_length=30 : the minimum amount of words each article must have, only enforced if length_checker = True 
@@ -94,7 +96,7 @@ associated stock price change (becasue the article was published before the past
 
 ```python
 class WebNode(object):
-    """represents an entry in data.csv that will be used to train our neural network"""
+    """represents an entry in data.csv that will be used to train our sentiment classifier"""
     def __init__(self, url, pubdate, article, words, sentences, industry='', sector=''):
         self.url = url              					# string
         self.pubdate = pubdate      					# datetime
