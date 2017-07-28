@@ -100,6 +100,7 @@ def crawl_home_page(soup, ID):
 		if not (urls is None): return list(map(lambda url: base + url['href'], urls.find_all('a'))); return None
 	return None
 
+
 def scrape(url, source, curious=False, ticker=None, date_checker=True, length_checker=False, 
 									min_length=30, crawl_page=False, industry=True, sector=True):
 	'''
@@ -115,11 +116,10 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 	url_obj = urlparse(url)
 	if not url_obj: return None
 	if not validate_url(url_obj, source, curious=curious): return None    
-	
 	requestHandler = RequestHandler()
 	req = requestHandler.get(url)
 	if req.content == None: return None
-	
+
 	parser = 'html.parser' 	# can also use 'lxml'
 	soup = BS(req.content, parser)
 
@@ -202,10 +202,7 @@ def classify(pubdate, ticker, offset=10):
 	now = datetime.now()
 	market_close = datetime(year=now.year, month=now.month, day=now.day, hour=16, minute=30)
 	diff = (market_close.minute - dates[idx].minute)
-	# print('date is ' + str(dates[idx]))
-	# print ('price of pubdate is %d price of pubdate+offset is %d' % (highp[idx], highp[idx+offset]))
-	# print('market_close is ' + str(market_close))
-	# print('diff is %d' % diff)
+	
 	if pre_mrkt_close((dates[idx] + timedelta(minutes=offset)), market_close): return np.sign(highp[idx+offset] - highp[idx])
 	elif diff > 0: 	return np.sign(highp[idx+diff] - highp[idx])
 	else: return not_found

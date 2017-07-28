@@ -63,6 +63,7 @@ def SNP_500():
         loader.start('Loading SNP500')
     url = 'http://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     req = RequestHandler().get(url)
+    if req == None: return 
     soup = BS(req.content, 'lxml')
     table = soup.find('table', {'class': 'wikitable sortable'})
     tickers = []
@@ -80,6 +81,7 @@ def NYSE_Top100():
         loader.start('Loading NYSE100')
     url = 'http://online.wsj.com/mdc/public/page/2_3021-activnyse-actives.html'
     req = RequestHandler().get(url)
+    if req == None: return None
     soup = BS(req.content, 'html.parser')
     if printer: loader.stop()
     return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
@@ -101,7 +103,7 @@ def googler(string):
     url = 'https://www.google.com/search?site=&source=hp&q='+'+'.join(string)+'&gws_rd=ssl'
     req = RequestHandler().get(url)
 
-    if req.contet == None: return []
+    if req == None: return []
     soup = BS(req.content,'html.parser')
         
     reg=re.compile('.*&sa=')
@@ -248,7 +250,7 @@ class Worker(object):
         url = 'https://www.google.com/search?site=&source=hp&q='+self.query+'&gws_rd=ssl'
         req = self.requestHandler.get(url)
 
-        if req.contet == None: return
+        if req == None: return Nones
         soup = BS(req.content,'html.parser')
         
         reg=re.compile('.*&sa=')
