@@ -53,12 +53,12 @@ sources = valid_sources() # use all specialized sources
 If you want to use stocker as just a means to query google and get a list of results, you can do so.
 
 ```python
-from stocker import Googler
+from stocker import googler
 
 # Googler takes in a string (what you would type in the search bar) and returns a list of urls generated from the query
 # if an error occurs, Googler returns None
 
-results = Googler('What is there to do in Berkeley?')
+results = googler('What is there to do in Berkeley?')
 ```
 
 # Modules
