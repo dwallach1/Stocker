@@ -100,7 +100,6 @@ def crawl_home_page(soup, ID):
 		if not (urls is None): return list(map(lambda url: base + url['href'], urls.find_all('a'))); return None
 	return None
 
-
 def scrape(url, source, curious=False, ticker=None, date_checker=True, length_checker=False, 
 									min_length=30, crawl_page=False, industry=True, sector=True):
 	'''
@@ -116,9 +115,11 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 	url_obj = urlparse(url)
 	if not url_obj: return None
 	if not validate_url(url_obj, source, curious=curious): return None    
+	
 	requestHandler = RequestHandler()
 	req = requestHandler.get(url)
-
+	if req.content == None: return None
+	
 	parser = 'html.parser' 	# can also use 'lxml'
 	soup = BS(req.content, parser)
 
@@ -167,13 +168,8 @@ def classify(pubdate, ticker, offset=10):
 	if ((today - margin) > pubdate): return not_found
 
 	url = 'https://www.google.com/finance/getprices?i=60&p=20d&f=d,o,h,l,c,v&df=cpct&q={}'.format(ticker.upper())
-	try:
-		headers = {'User-Agent': 'Mozilla/5.0'}
-		req = requests.get(url, headers=headers)
-		if req.status == 503:
-			time.sleep(GOOGLE_WAIT)
-			req = requests.get(url, headers=headers)
-	except: return not_found
+	req = RequestHandler().get(url)
+	if req.content == None: return not_found
 
 	source_code = req.content
 	split_source = source_code.split('\n')
@@ -228,49 +224,3 @@ def str2unix(datestr):
 	date1, date2 = datetime.now(timezone('US/Eastern')), datetime.now()
 	rdelta = date1.hour - date2.hour 					#	convert local time to EST (the timezone the data was recorded in)
 	return date_UTC + timedelta(hours=rdelta)	
-
-# TESTS
-
-# print(classify(datetime.now() - timedelta(days= 5, hours=9), 'tsla'))
-
-
-# url = 'https://www.bloomberg.com/press-releases/2017-07-13/top-5-companies-in-the-global-consumer-electronics-and-telecom-products-market-by-bizvibe'
-# url = 'https://www.bloomberg.com/gadfly/articles/2017-04-27/under-armour-earnings-buckle-up'
-# url = 'https://www.bloomberg.com/news/videos/2017-04-27/under-armour-regains-footing-amid-footwear-slump-video'
-# url = 'https://www.bloomberg.com/quote/UA:US'
-# url = 'https://www.bloomberg.com/news/articles/2017-04-27/under-armour-loses-whatever-swagger-it-had-left'
-# print (scrape(url, 'bloomberg', ticker='ua'))
-#
-
-
-# url = 'https://seekingalpha.com/article/4083816-kevin-plank-needs-resign-armour'
-# url = 'https://seekingalpha.com/filing/3582573'
-# url = 'https://seekingalpha.com/article/4077661-armour-millennial-play-pay'
-# url = 'https://seekingalpha.com/news/3276278-retail-sector-awaits-nike-earnings'
-# url = 'https://seekingalpha.com/article/4085681-armour-super-overvalued-shareholders-invested'
-# url = 'https://seekingalpha.com/symbol/UA'
-# print(scrape(url, 'seekingalpha'))
-
-
-
-# url = 'http://www.reuters.com/article/under-armour-results-idUSL4N1HZ4CJ'
-# url = 'http://www.reuters.com/article/us-britain-economy-investment-idUSKBN1A00TC'
-# url = 'http://www.reuters.com/article/us-under-armour-results-idUSKBN17T1LI'
-# url = 'http://www.reuters.com/finance/stocks/overview?symbol=UA.N'
-# print(scrape(url, 'reuters'))
-
-
-
-# url = 'http://www.investopedia.com/news/nike-declares-it-growth-company-nke/?lgl=rira-baseline-vertical'
-# url = 'http://www.investopedia.com/markets/stocks/nke/'
-# url = 
-# url = 
-# print(scrape(url, 'investopedia'))
-
-
-# url = 'https://www.thestreet.com/story/14042017/1/stop-wondering-what-is-going-on-with-under-armour.html'
-# url = 'https://www.thestreet.com/quote/UA.html'
-# url = 
-# url = 
-# print(scrape(url, 'thestreet'))
-
