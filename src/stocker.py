@@ -18,12 +18,11 @@ import requests
 from bs4 import BeautifulSoup as BS
 from tqdm import tqdm, trange
 from datetime import datetime
-from webparser import scrape, homepages
+from webparser import scrape, RequestHandler, homepages
 
 logger = logging.getLogger(__name__)
 
 printer = True
-
 
 class Loading:
     busy = False
@@ -50,31 +49,20 @@ class Loading:
         self.busy = False
         time.sleep(1)
 
-
-
-
  # def moveup(self, lines):
  #        for _ in range(lines):
  #            sys.stdout.write("\x1b[A")
-
-
 
 def sysprint(text):
     sys.stdout.write('{}\r'.format(text))
     sys.stdout.flush()
 
-    
-    
-
 def SNP_500():
     if printer:
         loader = Loading()
         loader.start('Loading SNP500')
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        req = requests.get('http://en.wikipedia.org/wiki/List_of_S%26P_500_companies', headers=headers)
-    except: return None
+    url = 'http://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+    req = RequestHandler().get(url)
     soup = BS(req.content, 'lxml')
     table = soup.find('table', {'class': 'wikitable sortable'})
     tickers = []
@@ -91,10 +79,7 @@ def NYSE_Top100():
         loader = Loading()
         loader.start('Loading NYSE100')
     url = 'http://online.wsj.com/mdc/public/page/2_3021-activnyse-actives.html'
-    try:
-        req = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
-        req.raise_for_status()
-    except: return None
+    req = RequestHandler().get(url)
     soup = BS(req.content, 'html.parser')
     if printer: loader.stop()
     return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
@@ -104,10 +89,7 @@ def NASDAQ_Top100():
         loader = Loading()
         loader.start('Loading NASDAQ100')
     url = 'http://online.wsj.com/mdc/public/page/2_3021-activnnm-actives.html'
-    try:
-        req = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
-        req.raise_for_status()
-    except: return None
+    req = RequestHandler().get(url)
     soup = BS(req.content, 'html.parser')
     if printer: loader.stop()
     return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
@@ -130,6 +112,7 @@ class Stocker(object):
         self.csv_path = csv_path
         self.json_path = json_path
         self.queries = []
+        self.requestHandler = RequestHandler()
 
     def build_queries(self, depth=1):
         """creates google queries based on the provided stocks and news sources"""
@@ -220,14 +203,10 @@ class Stocker(object):
     def get_name(self, ticker):
         """convert the ticker to the associated company name"""
         url = 'http://d.yimg.com/autoc.finance.yahoo.com/autoc?query='+ticker.upper()+'&region=1&lang=en'
-        # headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        try:
-            result = requests.get(url, headers=headers).json()
-            result.raise_for_status()
-        except: return None
+        req = self.requestHandler.get(url)
+        if req == None: return None; req = req.json()
 
-        for x in result['ResultSet']['Result']:
+        for x in req['ResultSet']['Result']:
             if x['symbol'] == ticker:
                 return x['name']
 
@@ -239,6 +218,7 @@ class Worker(object):
         self.query = query              # string
         self.urls = []                  # array (string)
         self.nodes = []                 # array (WebNode())
+        self.requestHandler = RequestHandler()
 
     def __str__(self): return self.query
 
@@ -253,16 +233,10 @@ class Worker(object):
         self.urls = filter(lambda url: not(url in parsed_urls), self.urls)
 
     def get_urls(self):
-        _url = 'https://www.google.co.in/search?site=&source=hp&q='+self.query+'&gws_rd=ssl'
-        try:
-            # time.sleep(15)
-            headers = {'User-Agent': 'Mozilla/5.0'}
-            req = requests.get(_url, headers=headers)
-            req.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            logger.error('error {} occurred in function set_urls'.format(str(e))) 
-            return 
+        url = 'https://www.google.com/search?site=&source=hp&q='+self.query+'&gws_rd=ssl'
+        req = self.requestHandler.get(url)
 
+        if req.contet == None: return
         soup = BS(req.content,'html.parser')
         
         reg=re.compile('.*&sa=')

@@ -9,8 +9,19 @@ import numpy as np
 from bs4 import BeautifulSoup as BS
 
 logger = logging.getLogger(__name__)
+GOOGLE_WAIT = 20
 
-def homepages(): return ['quote', 'symbol', 'finance', 'markets']
+class RequestHandler():
+	def get(self, url):
+		headers = {'User-Agent': 'Mozilla/5.0'}
+		try:
+			req = requests.get(url, headers=headers)
+			if req.status_code == 503:
+				time.sleep(GOOGLE_WAIT)
+				req = requests.get(url, headers=headers)
+		except requests.exceptions.RequestException as e:
+			logger.error('Web Scraper Error: {}'.format(str(e)))
+			return None
 
 class WebNode(object):
 	"""represents an entry in data.csv that will be used to train our neural network"""
@@ -23,6 +34,8 @@ class WebNode(object):
 		self.industry = industry    # string
 		self.sector = sector        # string
 		self.classification = classification  #int
+
+def homepages(): return ['quote', 'symbol', 'finance', 'markets']
 
 def validate_url(url_obj, source, curious=False):
 	valid_schemes = ['http', 'https']
@@ -87,7 +100,9 @@ def crawl_home_page(soup, ID):
 		if not (urls is None): return list(map(lambda url: base + url['href'], urls.find_all('a'))); return None
 	return None
 
-def scrape(url, source, curious=False, ticker=None, date_checker=True, length_checker=False, min_length=30, crawl_page=False):
+
+def scrape(url, source, curious=False, ticker=None, date_checker=True, length_checker=False, 
+									min_length=30, crawl_page=False, industry=True, sector=True):
 	'''
 	parses the url for 
 	:param url: a web url
@@ -101,18 +116,11 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 	url_obj = urlparse(url)
 	if not url_obj: return None
 	if not validate_url(url_obj, source, curious=curious): return None    
-	try:
-		time.sleep(15)
-		headers = {'User-Agent': 'Mozilla/5.0'}
-		article_req = requests.get(url, headers=headers)
-		article_req.raise_for_status()
-	except requests.exceptions.RequestException as e:
-		logger.error('Web Scraper Error: {}'.format(str(e)))
-		return None
+	requestHandler = RequestHandler()
+	req = requestHandler.get(url)
 
-	parser = 'html.parser'
-	# if source == 'investopedia': parser = 'lxml'
-	soup = BS(article_req.content, parser)
+	parser = 'html.parser' 	# can also use 'lxml'
+	soup = BS(req.content, parser)
 
 	paths = url_obj.path.split('/')[1:] # first entry is '' so exclude it
 	p = paths[0].lower()
@@ -129,18 +137,12 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 	industry, sector = '', ''
 	
 	# look for industry and sector values
-	if ticker:
+	if (industry or sector) and ticker:
 		google_url = 'https://www.google.com/finance?&q='+ticker
-		try: 
-			time.sleep(15)
-			r = requests.get(google_url)
-			r.raise_for_status()
-		except requests.exceptions.RequestException as e:
-			logger.warn('Web Scraper Error from google_url: {}'.format(str(e)))
-			return WebNode(url, pubdate, article, words, sentences, industry, sector)
+		req = requestHandler.get(google_url)
+		if req == None: return WebNode(url, pubdate, article, words, sentences, industry, sector)
 		
 		s = BS(r.text, 'html.parser')
-		# container = s.find('div', attrs= {'class':'sfe-section'}).findAll('a')
 		container = s.find_all('a')
 		next_ = False
 		for a in container:
@@ -166,9 +168,11 @@ def classify(pubdate, ticker, offset=10):
 
 	url = 'https://www.google.com/finance/getprices?i=60&p=20d&f=d,o,h,l,c,v&df=cpct&q={}'.format(ticker.upper())
 	try:
-		time.sleep(15)
-		req = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
-		req.raise_for_status()
+		headers = {'User-Agent': 'Mozilla/5.0'}
+		req = requests.get(url, headers=headers)
+		if req.status == 503:
+			time.sleep(GOOGLE_WAIT)
+			req = requests.get(url, headers=headers)
 	except: return not_found
 
 	source_code = req.content
