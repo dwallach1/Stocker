@@ -99,7 +99,7 @@ def querify(string): return '+'.join(string.split(' '))
 
 def googler(string):
     url = 'https://www.google.com/search?site=&source=hp&q='+'+'.join(string)+'&gws_rd=ssl'
-    req = self.requestHandler.get(url)
+    req = RequestHandler().get(url)
 
     if req.contet == None: return []
     soup = BS(req.content,'html.parser')
