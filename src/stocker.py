@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 printer = True
 
+
 class Loading:
     busy = False
     def loading(self, text):
@@ -49,10 +50,20 @@ class Loading:
         self.busy = False
         time.sleep(1)
 
+
+
+
+ # def moveup(self, lines):
+ #        for _ in range(lines):
+ #            sys.stdout.write("\x1b[A")
+
+
+
 def sysprint(text):
-    sys.stdout.flush()
     sys.stdout.write('{}\r'.format(text))
     sys.stdout.flush()
+
+    
     
 
 def SNP_500():
@@ -122,9 +133,9 @@ class Stocker(object):
 
     def build_queries(self, depth=1):
         """creates google queries based on the provided stocks and news sources"""
-        if printer:
-            loader = Loading()
-            loader.start('Building queries')
+        # if printer:
+        #     loader = Loading()
+        #     loader.start('Building queries')
         for t in self.tickers:
             for s in self.sources:
                 string1 = t + '+' + s + '+' + 'stock+articles'
@@ -134,7 +145,7 @@ class Stocker(object):
                         string2 =  '+'.join(map(lambda name: re.sub(r'[^\w\s]','',name), filter(lambda i: i != 'Inc.' ,cname.split(' ')))) + '+' + s + '+stock+news'
                         self.queries.append(Query(t, s, string2))
                 self.queries.append(Query(t, s, string1))
-        if printer: loader.stop()
+        # if printer: loader.stop()
         logger.debug('built {} queries'.format(len(self.queries)))
 
     def stock(self, gui=True, nodes=False, json=True, csv=True, depth=1, query=True, shuffle=True):
@@ -244,7 +255,7 @@ class Worker(object):
     def get_urls(self):
         _url = 'https://www.google.co.in/search?site=&source=hp&q='+self.query+'&gws_rd=ssl'
         try:
-            time.sleep(15)
+            # time.sleep(15)
             headers = {'User-Agent': 'Mozilla/5.0'}
             req = requests.get(_url, headers=headers)
             req.raise_for_status()
