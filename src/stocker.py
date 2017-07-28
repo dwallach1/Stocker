@@ -97,6 +97,18 @@ def NASDAQ_Top100():
 def valid_sources(): return ['bloomberg', 'seekingalpha', 'reuters', 'thestreet', 'investopedia']
 def querify(string): return '+'.join(string.split(' '))
 
+def googler(string):
+    url = 'https://www.google.com/search?site=&source=hp&q='+'+'.join(string)+'&gws_rd=ssl'
+    req = self.requestHandler.get(url)
+
+    if req.contet == None: return []
+    soup = BS(req.content,'html.parser')
+        
+    reg=re.compile('.*&sa=')
+    urls = []
+    for item in soup.find_all(attrs={'class' : 'g'}): urls.append(reg.match(item.a['href'][7:]).group()[:-4])
+    return urls
+
 class Query(object):
     def __init__(self, ticker, source, string):
         self.ticker = ticker
