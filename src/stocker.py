@@ -54,7 +54,7 @@ class Loading:
  #            sys.stdout.write("\x1b[A")
 
 def sysprint(text):
-    sys.stdout.write('{}\r'.format(text))
+    sys.stdout.write('\r{}\033[K'.format(text))
     sys.stdout.flush()
 
 def SNP_500():
@@ -116,8 +116,7 @@ class Query(object):
         self.ticker = ticker
         self.source = source
         self.string = string
-           
-              
+                    
 class Stocker(object):
     """stocker class manages the work for mining data and writing it to a csv file"""
     def __init__(self, tickers, sources, csv_path, json_path):
@@ -218,11 +217,12 @@ class Stocker(object):
         """convert the ticker to the associated company name"""
         url = 'http://d.yimg.com/autoc.finance.yahoo.com/autoc?query='+ticker.upper()+'&region=1&lang=en'
         req = self.requestHandler.get(url)
-        if req == None: return None; req = req.json()
+        if req == None: return None
+        req = req.json()
 
-        for x in req['ResultSet']['Result']:
-            if x['symbol'] == ticker:
-                return x['name']
+        for n in req['ResultSet']['Result']:
+            if n['symbol'] == ticker:
+                return n['name']
 
 class Worker(object):
     """contains the work of the program, filling in the node data so that it can be written to the csv file"""
@@ -247,21 +247,21 @@ class Worker(object):
         self.urls = filter(lambda url: not(url in parsed_urls), self.urls)
 
     def get_urls(self):
-        url = 'https://www.google.com/search?site=&source=hp&q='+self.query+'&gws_rd=ssl'
+        url = 'https://www.google.co.in/search?site=&source=hp&q='+self.query+'&gws_rd=ssl'
         req = self.requestHandler.get(url)
+        if req == None: return None
 
-        if req == None: return Nones
         soup = BS(req.content,'html.parser')
-        
         reg=re.compile('.*&sa=')
         new_urls = []
         for item in soup.find_all(attrs={'class' : 'g'}): new_urls.append(reg.match(item.a['href'][7:]).group()[:-4])
         self.urls = new_urls
+        logger.debug('found {} links from the query'.format(len(new_urls)))
 
     def build_nodes(self):
         j = '.'
         for i, url in enumerate(self.urls):
-            if printer: sysprint('parsing urls for query: {}'.format(self.query) + j*(i+1 % 3))
+            if printer: sysprint('parsing urls for query: {}'.format(self.query) + j*(i % 3))
             node = scrape(url, self.source, ticker=self.ticker)
             if isinstance(node, list):
                 self.urls += filter(lambda url: not(url in self.urls), node)

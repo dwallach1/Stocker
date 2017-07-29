@@ -25,8 +25,9 @@ def gather_data():
     nyse100, nasdaq100, snp500 = data['NYSE100'], data['NASDAQ100'], data['SNP500']
     other_stocks = ['AAPL', 'GOOG', 'GPRO', 'TSLA', 'APRN', 'FB', 'NVDA', 'SNAP', 'SPY', 'NFLX', 'AMZN', 'AMD']
     tickers = nyse100 + nasdaq100 + snp500 + other_stocks
-    tickers = other_stocks
-    sources = ['seekingalpha', 'bloomberg', 'reuters']
+    tickers = ['APRN']
+    # sources = ['seekingalpha', 'bloomberg', 'reuters']
+    sources = ['bloomberg']
     csv_path = "../data/examples.csv"
     json_path = "../data/links.json"
     dm = Stocker(tickers, sources, csv_path, json_path)

@@ -17,8 +17,10 @@ class RequestHandler():
 		try:
 			req = requests.get(url, headers=headers)
 			if req.status_code == 503:
+				logger.warn('Request code of 503')
 				time.sleep(GOOGLE_WAIT)
 				req = requests.get(url, headers=headers)
+			return req
 		except requests.exceptions.RequestException as e:
 			logger.error('Web Scraper Error: {}'.format(str(e)))
 			return None
@@ -100,9 +102,7 @@ def crawl_home_page(soup, ID):
 		if not (urls is None): return list(map(lambda url: base + url['href'], urls.find_all('a'))); return None
 	return None
 
-
-def scrape(url, source, curious=False, ticker=None, date_checker=True, length_checker=False, 
-									min_length=30, crawl_page=False, industry=True, sector=True):
+def scrape(url, source, curious=False, ticker=None, date_checker=True, length_checker=False, min_length=30, crawl_page=False, industry=True, sector=True):
 	'''
 	parses the url for 
 	:param url: a web url
