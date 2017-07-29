@@ -24,22 +24,17 @@ logger = logging.getLogger(__name__)
 
 printer = True
 
+def sysprint(text):
+    sys.stdout.write('\r{}\033[K'.format(text))
+    sys.stdout.flush()
+
 class Loading:
     busy = False
     def loading(self, text):
+        i, j = 0, '.'
         while self.busy:
-            sys.stdout.write('{}   \r'.format(text))
-            sys.stdout.flush()
-            time.sleep(1)
-            sys.stdout.write('{}.  \r'.format(text))
-            sys.stdout.flush()
-            time.sleep(1)
-            sys.stdout.write('{}.. \r'.format(text))
-            sys.stdout.flush()
-            time.sleep(1)
-            sys.stdout.write('{}...\r'.format(text))
-            sys.stdout.flush()
-            time.sleep(1)
+            sysprint('{}'.format(text) + j*(i % 3))
+            i += 1
 
     def start(self, text):
         self.busy = True
@@ -52,10 +47,6 @@ class Loading:
  # def moveup(self, lines):
  #        for _ in range(lines):
  #            sys.stdout.write("\x1b[A")
-
-def sysprint(text):
-    sys.stdout.write('\r{}\033[K'.format(text))
-    sys.stdout.flush()
 
 def SNP_500():
     if printer:
@@ -132,8 +123,11 @@ class Stocker(object):
         # if printer:
         #     loader = Loading()
         #     loader.start('Building queries')
+        i, j = 0, '.'
         for t in self.tickers:
             for s in self.sources:
+                if printer: sysprint('Building queries' + j*(i % 3))
+                i += 1
                 string1 = t + '+' + s + '+' + 'stock+articles'
                 if depth > 1:
                     cname = self.get_name(t) 
