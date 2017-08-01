@@ -38,8 +38,11 @@ def valid_url_test():
     pass
 
 def classify_test():
-    # stock, date, offset = 'APRN', datetime(), 10
-    # assert(classify(stock, date, offset) == 1.00)
+    # datetime(year, month, day[, hour[, minute[, second[, microsecond[,tzinfo]]]]])
+    stock, date, offset = 'APRN', datetime(2017, 07, 12, 9, 33), 10  # HAVE CLASSIFY RETURN A MAGNITUDE ALSO (the size of difference)
+    # 7.105 --> 7.11
+    change = classify(stock, date, offset)
+    # assert(classify(change.sign == 1.00 && change.magnitude(.005))
     # stock, date, offset = 'NKE', datetime(), 13
     # assert(classify(stock, date, offset) == 0.00)
     # stock, date, offset = 'TSLA', datetime(), 20
