@@ -6,7 +6,7 @@ import requests
 from webparser import scrape
 
 
-# ['bloomberg', 'seekingalpha', 'reuters', 'thestreet', 'investopedia']
+Test = namedtuple('Test', 'func status') # status {0,1} where 0 is failed, 1 is passed
 
 class bcolors: 
     GREEN = '\033[92m'
@@ -31,39 +31,37 @@ def soupify(url):
 
     return BS(req.content, 'html.parser')
 
-
 def valid_url_test():
     valid_urls = []
     invalid_urls = []
     for url in valid_urls:    
     pass
 
-
 def classify_test():
-    stock, date, offset = 'APRN', datetime(), 10
-    assert(classify(stock, date, offset) == 1.00)
-    stock, date, offset = 'NKE', datetime(), 13
-    assert(classify(stock, date, offset) == 0.00)
-    stock, date, offset = 'TSLA', datetime(), 20
-    assert(classify(stock, date, offset) == -1.00)
+    # stock, date, offset = 'APRN', datetime(), 10
+    # assert(classify(stock, date, offset) == 1.00)
+    # stock, date, offset = 'NKE', datetime(), 13
+    # assert(classify(stock, date, offset) == 0.00)
+    # stock, date, offset = 'TSLA', datetime(), 20
+    # assert(classify(stock, date, offset) == -1.00)
 
-    # Test market close 
-    stock, date, offset = 'APRN', datetime(), 10
-    assert(classify(stock, date, offset) == 1.00)
+    # # Test market close 
+    # stock, date, offset = 'APRN', datetime(), 10
+    # assert(classify(stock, date, offset) == 1.00)
 
-    # test if pubdate was after market close / before
-    stock, date, offset = 'APRN', datetime(), 10
-    assert(classify(stock, date, offset) == 1.00)
+    # # test if pubdate was after market close / before
+    # stock, date, offset = 'APRN', datetime(), 10
+    # assert(classify(stock, date, offset) == 1.00)
 
-    # test article published on weekend
-    stock, date, offset = 'APRN', datetime(), 10
-    assert(classify(stock, date, offset) == 1.00)
-
+    # # test article published on weekend
+    # stock, date, offset = 'APRN', datetime(), 10
+    # assert(classify(stock, date, offset) == 1.00)
 
 def str2unix_test():
     pass
 
 def homepage_test():
+    failed, passed = Test('homepage_test', 0), Test('homepage_test', 1)
     Link = namedtuple('Link', 'url source')
     homepages = [Link('https://www.bloomberg.com/quote/APRN:US', 'bloomberg'), # bloomberg
                  Link('https://seekingalpha.com/symbol/APRN', 'seekingalpha'),    # seekingalpha
@@ -75,8 +73,10 @@ def homepage_test():
     for link in homepages: 
         sysprint ('Homepage test -- testing {}'.format(link.source))
         result = scrape(link.url, link.source)
-        assert (isinstance(result, list))
+        if not (isinstance(result, list)) return failed
         sysprint( bcolors.GREEN + 'Home Page Test: Passed' + bcolors.ENDC)
+
+    return passed
 
 def bloomberg_test():
     pass
@@ -91,7 +91,11 @@ def bloomberg_test():
 #[REPEAT FOR ALL TESTED DOMAINS]
 
 def main():
-    homepage_test()
+    tests = []
+    tests.append(homepage_test())
+    passed = sum(filter(lambda test: test.status == 1, tests))
+    total = len(tests)
+    print ('passed {} out of {} test cases'.format(passed, total))
 
 if __name__ == "__main__":
     main()
