@@ -248,7 +248,7 @@ def classify(pubdate, ticker, offset=10):
 	:param offset: the interval to for stock price change (stockprice[pubdate+offset(minutes)] - stockprice[pubdate])
 	:type offset: int
 	"""
-	not_found = StockChange(-1000, 0)
+	not_found = PriceChange(-1000, 0)
 	
 	today = datetime.today()
 	today, pubdate = today.replace(tzinfo=None), pubdate.replace(tzinfo=None)
@@ -293,10 +293,10 @@ def classify(pubdate, ticker, offset=10):
 	
 	if pre_mrkt_close((dates[idx] + timedelta(minutes=offset)), market_close): 
 		chng = highp[idx+offset] - highp[idx]
-		return StockChange(np.sign(chng), abs(float(chng)))
+		return PriceChange(np.sign(chng), abs(float(chng)))
 	elif diff > 0: 	
 		chng = highp[idx+diff] - highp[idx]
-		return StockChange(np.sign(chng), abs(float(chng)))
+		return PriceChange(np.sign(chng), abs(float(chng)))
 	else: return not_found
 	
 def same_date(date1, date2):
