@@ -60,6 +60,31 @@ def validate_url(url_obj, source, curious=False):
 	if len(domain_list) > 0: domain = domain_list[0].lower()
 	return (url_obj.scheme in valid_schemes) and ((domain == source.lower()) or curious)
 
+def get_sector_industry(ticker):
+	"""
+	looks for the associated sector and industry of the stock ticker
+	returns -> two strings (first: industry, second: sector)
+	:param ticker: associated stock ticker to look up for the information
+	:type ticker: string
+	"""
+	industry, sector = '', ''
+	requestHandler = RequestHandler()
+	google_url = 'https://www.google.com/finance?&q='+ticker
+	req = requestHandler.get(google_url)
+	if req == None: return WebNode(url, pubdate, article, words, sentences, industry, sector)
+	
+	s = BS(r.text, 'html.parser')
+	container = s.find_all('a')
+	next_ = False
+	for a in container:
+		if next_: 
+			industry = a.text.strip()
+			break
+		if a.get('id') == 'sector': 
+			sector = a.text.strip()
+			next_ = True
+	return industry, sector
+
 def find_date(soup, source, container):
 	"""
 	parses a beautifulsoup object in search of a publishing date
@@ -197,25 +222,9 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 	words = article.decode('utf-8').split(u' ')
 	if length_checker and len(words) < 30: return None
 	sentences = list(map(lambda s: s.encode('utf-8'), re.split(r' *[\.\?!][\'"\)\]]* *', article.decode('utf-8'))))
-	industry, sector = '', ''
 	
-	# look for industry and sector values
 	if (find_industry or find_sector) and ticker:
-		requestHandler = RequestHandler()
-		google_url = 'https://www.google.com/finance?&q='+ticker
-		req = requestHandler.get(google_url)
-		if req == None: return WebNode(url, pubdate, article, words, sentences, industry, sector)
-		
-		s = BS(r.text, 'html.parser')
-		container = s.find_all('a')
-		next_ = False
-		for a in container:
-			if next_: 
-				if find_industry: industry = a.text.strip()
-				break
-			if a.get('id') == 'sector': 
-				if find_sector: sector = a.text.strip()
-				next_ = True
+		industry, sector = get_sector_industry(ticker)
 
 	classification = -1000
 	if ticker:	classification = classify(pubdate, ticker)
