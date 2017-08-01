@@ -1,5 +1,6 @@
 import re, logging
 from urlparse import urlparse
+from collections import namedtuple
 import requests
 from datetime import datetime, timedelta
 from pytz import timezone
@@ -36,7 +37,7 @@ class WebNode(object):
 	def __iter__(self):
 		attrs = [attr for attr in dir(self) if attr[:2] != '__']
 
-
+PriceChange = namedtuple('PriceChange', 'status magnitude')
 
 
 def homepages(): return ['quote', 'symbol', 'finance', 'markets']
@@ -229,15 +230,17 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 		if find_industry: 
 
 	# classification = -1000
-	if ticker:	classification = classify(pubdate, ticker)
-	
+	if ticker:	
+		classification = classify(pubdate, ticker)
+		args['classification'] = classification.status
+		args['magnitude'] = classification.magnitude
 	# return WebNode(url, pubdate, article, words, sentences, industry, sector, classification)
 	return WebNode(**args)
 
 def classify(pubdate, ticker, offset=10):
 	"""
 	finds an associated classification based on the stock price fluctiation of the given ticker
-	returns -> int {-1000: not_found, -1.0: declined, 0.0: stayed the same, 1.0:increeased}
+	returns -> StockChange  {-1000: not_found, -1.0: declined, 0.0: stayed the same, 1.0:increeased}
 	:param pubdate: the publishing date of the article
 	:type pubdate: datetime object
 	:param ticker: the stock ticker to search the API for
@@ -245,7 +248,7 @@ def classify(pubdate, ticker, offset=10):
 	:param offset: the interval to for stock price change (stockprice[pubdate+offset(minutes)] - stockprice[pubdate])
 	:type offset: int
 	"""
-	not_found = -1000
+	not_found = StockChange(-1000, 0)
 	
 	today = datetime.today()
 	today, pubdate = today.replace(tzinfo=None), pubdate.replace(tzinfo=None)
@@ -288,8 +291,12 @@ def classify(pubdate, ticker, offset=10):
 	market_close = datetime(year=now.year, month=now.month, day=now.day, hour=16, minute=30)
 	diff = (market_close.minute - dates[idx].minute)
 	
-	if pre_mrkt_close((dates[idx] + timedelta(minutes=offset)), market_close): return np.sign(highp[idx+offset] - highp[idx])
-	elif diff > 0: 	return np.sign(highp[idx+diff] - highp[idx])
+	if pre_mrkt_close((dates[idx] + timedelta(minutes=offset)), market_close): 
+		chng = highp[idx+offset] - highp[idx]
+		return StockChange(np.sign(chng), abs(float(chng)))
+	elif diff > 0: 	
+		chng = highp[idx+diff] - highp[idx]
+		return StockChange(np.sign(chng), abs(float(chng)))
 	else: return not_found
 	
 def same_date(date1, date2):
