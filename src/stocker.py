@@ -12,6 +12,7 @@ those articles such as the article body and publishing date
 import os, sys, logging, json, string
 import threading, time
 import random
+from collections import namedtuple
 import time, csv, re
 from urlparse import urlparse
 import requests
@@ -23,6 +24,8 @@ from webparser import scrape, RequestHandler, homepages
 logger = logging.getLogger(__name__)
 
 printer = True
+
+Query = namedtuple('Query', 'ticker source string')
 
 def sysprint(text):
     sys.stdout.write('\r{}\033[K'.format(text))
@@ -102,11 +105,12 @@ def googler(string):
     for item in soup.find_all(attrs={'class' : 'g'}): urls.append(reg.match(item.a['href'][7:]).group()[:-4])
     return urls
 
-class Query(object):
-    def __init__(self, ticker, source, string):
-        self.ticker = ticker
-        self.source = source
-        self.string = string
+
+# class Query(object):
+#     def __init__(self, ticker, source, string):
+#         self.ticker = ticker
+#         self.source = source
+#         self.string = string
                     
 class Stocker(object):
     """stocker class manages the work for mining data and writing it to a csv file"""
