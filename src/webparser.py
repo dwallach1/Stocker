@@ -7,6 +7,7 @@ import dateutil.parser as dateparser
 import time
 import numpy as np
 from bs4 import BeautifulSoup as BS
+import dryscrape
 
 logger = logging.getLogger(__name__)
 GOOGLE_WAIT = 20
@@ -40,14 +41,34 @@ class WebNode(object):
 def homepages(): return ['quote', 'symbol', 'finance', 'markets']
 
 def validate_url(url_obj, source, curious=False):
+	'''
+	basic url checking to save overhead
+	returns -> boolean
+	:param url_obj: the url in question
+	:type url_obj: urlparse object
+	:param souce: the source provided in the query
+	:type source: string
+	:param curious: determines if it should check to see if the domain matches the source
+	:type curious: boolean
+	'''
 	valid_schemes = ['http', 'https']
 	if not url_obj.hostname: return False
-	domain_list = list(filter(lambda x: len(x) > 3, url_obj.hostname.split('.')))
+	# domain_list = list(filter(lambda x: len(x) > 3, url_obj.hostname.split('.')))
+	domain_list = [x for x in url_obj.hostname.split('.') if len(x) > 3]
 	domain = ''
 	if len(domain_list) > 0: domain = domain_list[0].lower()
 	return (url_obj.scheme in valid_schemes) and ((domain == source.lower()) or curious)
 
 def find_date(soup, source, container):
+	'''
+	parses a beautifulsoup object in search of a publishing date
+	returns -> datetime on success, None on error
+	:param soup: a beautifulsoup object
+	:param source: the source provided in the query
+	:type source: string
+	:param container: an html attribute to where dates are stored for valid sources
+	:type container: string
+	'''
 	s, c = source.lower(), container.lower()
 	try:
 		if s == 'bloomberg':
@@ -77,29 +98,50 @@ def find_date(soup, source, container):
 	except: return None
 
 def find_article(soup, source, container):
+	'''
+	parses a beautifulsoup object in search of the url's content (the article)
+	returns -> string
+	:param soup: a beautifulsoup object
+	:param source: the source provided in the query
+	:type source: string
+	:param container: an html attribute to where dates are stored for valid sources
+	:type container: string
+	'''
 	s, c = source.lower(), container.lower()
 	offset = 0 
 	if s == 'bloomberg': offset = 8
 	return ' '.join(list(map(lambda p: p.text.strip(), soup.find_all('p')[offset:]))).encode('utf-8')
 
 def crawl_home_page(soup, ID):
+	'''
+	looks for links of a domain's ticker homepage
+	returns -> list on success, None on error
+	:param soup: a beautifulsoup object
+	:param ID: the url path to indicate how to parse the soup object
+	:type ID: string
+	'''
 	if ID == 'quote':       # bloomberg / thestreet
 		urls = soup.find_all('a', attrs={'class': 'news-story__url'}, href=True)
-		if not (urls is None): return list(map(lambda url: url['href'], urls))
+		# if not (urls is None): return list(map(lambda url: url['href'], urls))
+		if not (urls is None): return [url['href'] for url in urls]
 		urls = soup.find_all('div', attrs={'class': 'news-story__url'}, href=True) 
-		if not (urls is None): return list(map(lambda url: url['href'], urls)); return None
+		# if not (urls is None): return list(map(lambda url: url['href'], urls)); return None
+		if not (urls is None): return [url['href'] for url in urls]; return None
 	elif ID == 'symbol':  # seeking alpha
 		base = 'https://seekingalpha.com'
 		urls = soup.find_all('a', attrs={'sasource': 'qp_latest'}, href=True)
-		if not (urls is None): return list(map(lambda url: base + url['href'], urls)); return None  
+		# if not (urls is None): return list(map(lambda url: base + url['href'], urls)); return None
+		if not (urls is None): return [base + url['href'] for url in urls]; return None  
 	elif ID == 'finance':   # reuters
 		base = 'http://reuters.com'
 		urls = soup.find('div', attrs={'id': 'companyOverviewNews'})
-		if not (urls is None): return list(map(lambda url: base + url['href'], urls.find_all('a'))); return None
+		# if not (urls is None): return list(map(lambda url: base + url['href'], urls.find_all('a'))); return None
+		if not (urls is None): return [base + url['href'] for url in urls.find_all('a')]; return None
 	elif ID == 'markets':   # investopedia
 		base = 'http://investopedia.com'
-		urls = soup.findAll('section')
-		if not (urls is None): return list(map(lambda url: base + url['href'], urls.find_all('a'))); return None
+		urls = soup.find('section', attrs={'id':'News'})
+		# if not (urls is None): return list(map(lambda url: base + url['href'], urls.find_all('a'))); return None
+		if not (urls is None): return [base + url['href'] for url in urls.find_all('a')]; return None
 	return None
 
 def scrape(url, source, curious=False, ticker=None, date_checker=True, length_checker=False, min_length=30, crawl_page=False, industry=True, sector=True):
@@ -116,12 +158,17 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 	url_obj = urlparse(url)
 	if not url_obj: return None
 	if not validate_url(url_obj, source, curious=curious): return None    
-	requestHandler = RequestHandler()
-	req = requestHandler.get(url)
-	if req.content == None: return None
-
-	parser = 'html.parser' 	# can also use 'lxml'
-	soup = BS(req.content, parser)
+	# requestHandler = RequestHandler()
+	# req = requestHandler.get(url)
+	# if req.content == None: return None
+	# soup = BS(req.content, 'html.parser')
+	
+	session = dryscrape.Session()
+	session.visit(url)
+	response = session.body()
+	if response == None: return None
+	soup = BS(response, 'html.parser')
+	
 
 	paths = url_obj.path.split('/')[1:] # first entry is '' so exclude it
 	p = paths[0].lower()
@@ -139,6 +186,7 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 	
 	# look for industry and sector values
 	if (industry or sector) and ticker:
+		requestHandler = RequestHandler()
 		google_url = 'https://www.google.com/finance?&q='+ticker
 		req = requestHandler.get(google_url)
 		if req == None: return WebNode(url, pubdate, article, words, sentences, industry, sector)
@@ -208,12 +256,25 @@ def classify(pubdate, ticker, offset=10):
 	else: return not_found
 	
 def same_date(date1, date2):
+	'''
+	checks if two dates are equal (if one or both is not a valid datetime)
+	returns -> int in the set {0,1}
+	:param date(1/2): datetime | time object
+	'''
 	if (date1.month == date2.month) and (date1.day == date2.day) and (date1.hour == date2.hour) and (date1.minute == date2.minute): return 1
 	return 0
 
-def pre_mrkt_close(date1, date2):
-	if date1.hour < date2.hour: return True
-	elif date1.minute < date2.minute: return True
+def pre_mrkt_close(date, mrkt_close):
+	'''
+	checks if a given date is before the market close (just need to check hour/minute params)
+	returns -> boolean
+	:param date: the date in question
+	:type date: datetime object
+	:param mrkt_close: when the stock market closes
+	:type mrkt_close: datetime object
+	'''
+	if date.hour < mrkt_close.hour: return True
+	elif date.minute < mrkt_close.minute: return True
 	return False
 
 def str2unix(datestr):
@@ -221,3 +282,18 @@ def str2unix(datestr):
 	date1, date2 = datetime.now(timezone('US/Eastern')), datetime.now()
 	rdelta = date1.hour - date2.hour 					#	convert local time to EST (the timezone the data was recorded in)
 	return date_UTC + timedelta(hours=rdelta)	
+
+def name2domain(name):
+	domains = {
+		'Motley fool': 'fool',
+		'Bloomberg': 'bloomberg',
+		'Seeking alpha': 'seekingalpha',
+		'Yahoo Finance': 'finance.yahoo'
+	}
+	if not (name in domains.keys()): return None
+	return domains[name.lower()]
+
+def domain2name(domain):
+	pass
+
+
