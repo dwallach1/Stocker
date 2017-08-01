@@ -71,6 +71,7 @@ a sentiment analysis classifier.
 # Dependencies
 
 - [BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/bs4/doc/)
+- [Dryscrape](http://dryscrape.readthedocs.io/en/latest/installation.html)
 - [Requests](http://docs.python-requests.org/en/master/)
 - [nltk](http://www.nltk.org/)
 - [tqdm](https://github.com/tqdm/tqdm)
