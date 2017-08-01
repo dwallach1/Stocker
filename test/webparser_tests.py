@@ -35,9 +35,30 @@ def soupify(url):
 def valid_url_test():
     valid_urls = []
     invalid_urls = []
-    for url in valid_urls:
-        
+    for url in valid_urls:    
     pass
+
+
+def classify_test():
+    stock, date, offset = 'APRN', datetime(), 10
+    assert(classify(stock, date, offset) == 1.00)
+    stock, date, offset = 'NKE', datetime(), 13
+    assert(classify(stock, date, offset) == 0.00)
+    stock, date, offset = 'TSLA', datetime(), 20
+    assert(classify(stock, date, offset) == -1.00)
+
+    # Test market close 
+    stock, date, offset = 'APRN', datetime(), 10
+    assert(classify(stock, date, offset) == 1.00)
+
+    # test if pubdate was after market close / before
+    stock, date, offset = 'APRN', datetime(), 10
+    assert(classify(stock, date, offset) == 1.00)
+
+    # test article published on weekend
+    stock, date, offset = 'APRN', datetime(), 10
+    assert(classify(stock, date, offset) == 1.00)
+
 
 def str2unix_test():
     pass

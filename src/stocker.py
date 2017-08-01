@@ -91,7 +91,7 @@ def NASDAQ_Top100():
     return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
 
 def valid_sources(): return ['bloomberg', 'seekingalpha', 'reuters', 'thestreet', 'investopedia']
-def querify(string): return '+'.join(string.split(' '))
+def querify(ticker, source, string): return Query(ticker, source, '+'.join(string.split(' ')))
 
 def googler(string):
     url = 'https://www.google.com/search?site=&source=hp&q='+'+'.join(string)+'&gws_rd=ssl'
@@ -238,6 +238,7 @@ class Worker(object):
     # def __eq__(self):
 
     def remove_dups(self, json_path):
+        """removes already parsed urls from those found by get_urls"""
         if not os.path.exists(json_path): return 
         with open(json_path, 'r') as f:
             data = json.load(f)
@@ -245,6 +246,7 @@ class Worker(object):
         self.urls = filter(lambda url: not(url in parsed_urls), self.urls)
 
     def get_urls(self):
+        """searches the query in google and returns the resulting urls"""
         url = 'https://www.google.co.in/search?site=&source=hp&q='+self.query+'&gws_rd=ssl'
         req = self.requestHandler.get(url)
         if req == None: return None
@@ -257,10 +259,11 @@ class Worker(object):
         logger.debug('found {} links from the query'.format(len(new_urls)))
 
     def build_nodes(self):
+        """uses the urls to build WebNodes to be written to the csv output"""
         j = '.'
         for i, url in enumerate(self.urls):
             if printer: sysprint('parsing urls for query: {}'.format(self.query) + j*(i % 3))
-            node = scrape(url, self.source, ticker=self.ticker)
+            node = scrape(url, self.source, ticker=self.ticker, find_industry=False, find_sector=False)
             if isinstance(node, list):
                 self.urls += filter(lambda url: not(url in self.urls), node)
                 logger.debug('Hit landing page -- crawling for more links')
@@ -269,13 +272,15 @@ class Worker(object):
         if printer: sysprint ('built {} nodes to write to disk'.format(len(self.nodes)))
         logger.debug('built {} nodes to write to disk'.format(len(self.nodes)))
 
-    def dictify(self): 
+    def dictify(self):
+        """converts a WebNode list into a list of dicts""" 
         if len(self.nodes) == 0: return None 
-        return list(map(lambda node: {  'ticker': self.ticker,
-                                        'sector': node.sector,
-                                        'industry': node.industry,
-                                        'article': node.article,
-                                        'url': node.url,
-                                        'pubdate': node.pubdate,
-                                        'class': node.classification 
-                                        }, self.nodes))
+        return [dict(node) for node in self.nodes]
+        # return [ {  'ticker': self.ticker,
+        #             # 'sector': node.sector,
+        #             # 'industry': node.industry,
+        #             'article': node.article,
+        #             'url': node.url,
+        #             'pubdate': node.pubdate,
+        #             'class': node.classification 
+        #             } for node in self.nodes]

@@ -25,7 +25,7 @@ def gather_data():
     nyse100, nasdaq100, snp500 = data['NYSE100'], data['NASDAQ100'], data['SNP500']
     other_stocks = ['AAPL', 'GOOG', 'GPRO', 'TSLA', 'APRN', 'FB', 'NVDA', 'SNAP', 'SPY', 'NFLX', 'AMZN', 'AMD']
     tickers = nyse100 + nasdaq100 + snp500 + other_stocks
-    tickers = other_stocks
+    tickers = other_stocks[1]
     sources = ['seekingalpha', 'bloomberg', 'reuters']
 
     # tickers = ['APRN']

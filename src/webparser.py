@@ -29,15 +29,24 @@ class RequestHandler():
 
 class WebNode(object):
 	"""represents an entry in data.csv that will be used to train the sentiment classifier"""
-	def __init__(self, url, pubdate, article, words, sentences, industry, sector, classification):
-		self.url = url              # string
-		self.pubdate = pubdate      # datetime
-		self.article = article      # article
-		self.words = words          # list
-		self.sentences = sentences  # list
-		self.industry = industry    # string
-		self.sector = sector        # string
-		self.classification = classification  #int
+	# def __init__(self, url, pubdate, article, words, sentences, industry, sector, classification):
+	# 	self.url = url              # string
+	# 	self.pubdate = pubdate      # datetime
+	# 	self.article = article      # article
+	# 	self.words = words          # list
+	# 	self.sentences = sentences  # list
+	# 	self.industry = industry    # string
+	# 	self.sector = sector        # string
+	# 	self.classification = classification  #int
+	def __init__(self, **kwargs):
+		for key, value in kwargs.items():
+      		setattr(self, key, value)
+
+	def __iter__(self):
+		attrs = [attr for attr in dir(self) if attr[:2] != '__']
+
+
+
 
 def homepages(): return ['quote', 'symbol', 'finance', 'markets']
 
@@ -73,7 +82,7 @@ def get_sector_industry(ticker):
 	req = requestHandler.get(google_url)
 	if req == None: return WebNode(url, pubdate, article, words, sentences, industry, sector)
 	
-	s = BS(r.text, 'html.parser')
+	s = BS(req.text, 'html.parser')
 	container = s.find_all('a')
 	next_ = False
 	for a in container:
@@ -213,23 +222,31 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 	paths = url_obj.path.split('/')[1:] # first entry is '' so exclude it
 	p = paths[0].lower()
 	if p in homepages(): return crawl_home_page(soup, p)
-   
+   	
+   	args = {'url':url}
 	pubdate = find_date(soup, source, paths[0])
 	if pubdate is None and date_checker: return None
+	args['pubdate'] = pubdate
+
 	article = find_article(soup, source, paths[0])
 	logger.info('found pubdate to be: {}'.format(str(pubdate)))
+	args['article'] = article
 
 	words = article.decode('utf-8').split(u' ')
-	if length_checker and len(words) < 30: return None
+	if length_checker and len(words) < min_length: return None
 	sentences = list(map(lambda s: s.encode('utf-8'), re.split(r' *[\.\?!][\'"\)\]]* *', article.decode('utf-8'))))
+	args['words'] = words
+	args['sentences'] = sentences
 	
 	if (find_industry or find_sector) and ticker:
 		industry, sector = get_sector_industry(ticker)
+		if find_industry: 
 
-	classification = -1000
+	# classification = -1000
 	if ticker:	classification = classify(pubdate, ticker)
 	
-	return WebNode(url, pubdate, article, words, sentences, industry, sector, classification)
+	# return WebNode(url, pubdate, article, words, sentences, industry, sector, classification)
+	return WebNode(**args)
 
 def classify(pubdate, ticker, offset=10):
 	"""

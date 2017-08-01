@@ -26,12 +26,12 @@ from stocker import querify
 # define our own queries
 query_strings = ['under armour most recent articles', 'nikes recent stockholders meeting news']
 ticker = 'SNAP'
-stocker.queries = map(lambda string: querify(ticker, None, string), query_strings)
+stocker.queries = [querify(ticker, None, string) for string in query_strings]
 stocker.stock(query=False, curious=True)
 
 # or if you want to make sure they are from a certain source
 source = 'bloomberg'
-stocker.queries = map(lambda string: querify(ticker, source, string), query_strings)
+stocker.queries = [querify(ticker, source, string) for string in query_strings]
 stocker.stock(query=False)
 ```
 This package also has built in functions for getting popular stocks as well as a list of the sources that Stocker has been 
