@@ -94,7 +94,10 @@ a sentiment analysis classifier.
 # Storing Query Data
 To store all of the information, every time a url is parsed, a new webnode is generated. After all of the urls are parsed
 for a given query, the batch of webnodes are written to the csv file and the parsed urls are stored in the json file under
-the stocks ticker (uppercase). Along with the WebNode fields, the stock's ticker is included in each row as well as classification.
+the stocks ticker (uppercase). Along with the WebNode fields, the stock's ticker is included in each row as well as classification. 
+The WedNode's attributes are based on a dictionary that is formed from the flags set in the function call. The attributes set
+on the WebNode, will be the headers of the csv file. If you try to combine WebNodes with different attributes in one csv file,
+the program will throw an error becuase it is all based on dictionary operations. 
 The classification is based on the stock price fluctuations of the associated ticker over a given time interval (default 10 minutes). If 
 the stock's price increased, the classification is +1, decreased: -1, and neutral: 0. I am using Google's API for the 
 stock prices, they only offer free data (at the minute interval) for the most recent 14 weekdays. For this reason, if there was no 
@@ -103,14 +106,15 @@ associated stock price change (becasue the article was published before the past
 
 ```python
 class WebNode(object):
-    """represents an entry in data.csv that will be used to train our sentiment classifier"""
-    def __init__(self, url, pubdate, article, words, sentences, industry='', sector=''):
-        self.url = url              					# string
-        self.pubdate = pubdate      					# datetime
-        self.article = article      					# article
-        self.words = words          					# list
-        self.sentences = sentences  					# list
-        self.industry = industry    					# string
-        self.sector = sector       					   # string
+	def __init__(self, **kwargs):
+		"""represents an entry in data.csv that will be used to train the sentiment classifier"""
+		for key, value in kwargs.items():
+      		setattr(self, key, value)
+
+wn = WebNode{'url': url, 'date':date, 'article':article}
+
+wn_dict = dict(wn)
 ```
 
+I made it easy to convert a WebNode into a dictionary by defining an __iter__ method in the class. This allows Stocker to 
+easily write WebNodes to a csv file using a dictwriter. 
