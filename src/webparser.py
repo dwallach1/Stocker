@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 GOOGLE_WAIT = 20
 
 class RequestHandler():
+	"""handles making HTTP requests using request library"""
 	def get(self, url):
 		headers = {'User-Agent': 'Mozilla/5.0'}
 		try:
@@ -27,7 +28,7 @@ class RequestHandler():
 			return None
 
 class WebNode(object):
-	"""represents an entry in data.csv that will be used to train our neural network"""
+	"""represents an entry in data.csv that will be used to train the sentiment classifier"""
 	def __init__(self, url, pubdate, article, words, sentences, industry, sector, classification):
 		self.url = url              # string
 		self.pubdate = pubdate      # datetime
@@ -41,16 +42,16 @@ class WebNode(object):
 def homepages(): return ['quote', 'symbol', 'finance', 'markets']
 
 def validate_url(url_obj, source, curious=False):
-	'''
+	"""
 	basic url checking to save overhead
 	returns -> boolean
 	:param url_obj: the url in question
 	:type url_obj: urlparse object
 	:param souce: the source provided in the query
 	:type source: string
-	:param curious: determines if it should check to see if the domain matches the source
+	:param curious: determines if the function should check to see if the domain matches the source
 	:type curious: boolean
-	'''
+	"""
 	valid_schemes = ['http', 'https']
 	if not url_obj.hostname: return False
 	# domain_list = list(filter(lambda x: len(x) > 3, url_obj.hostname.split('.')))
@@ -60,7 +61,7 @@ def validate_url(url_obj, source, curious=False):
 	return (url_obj.scheme in valid_schemes) and ((domain == source.lower()) or curious)
 
 def find_date(soup, source, container):
-	'''
+	"""
 	parses a beautifulsoup object in search of a publishing date
 	returns -> datetime on success, None on error
 	:param soup: a beautifulsoup object
@@ -68,7 +69,7 @@ def find_date(soup, source, container):
 	:type source: string
 	:param container: an html attribute to where dates are stored for valid sources
 	:type container: string
-	'''
+	"""
 	s, c = source.lower(), container.lower()
 	try:
 		if s == 'bloomberg':
@@ -98,7 +99,7 @@ def find_date(soup, source, container):
 	except: return None
 
 def find_article(soup, source, container):
-	'''
+	"""
 	parses a beautifulsoup object in search of the url's content (the article)
 	returns -> string
 	:param soup: a beautifulsoup object
@@ -106,20 +107,20 @@ def find_article(soup, source, container):
 	:type source: string
 	:param container: an html attribute to where dates are stored for valid sources
 	:type container: string
-	'''
+	"""
 	s, c = source.lower(), container.lower()
 	offset = 0 
 	if s == 'bloomberg': offset = 8
 	return ' '.join(list(map(lambda p: p.text.strip(), soup.find_all('p')[offset:]))).encode('utf-8')
 
 def crawl_home_page(soup, ID):
-	'''
+	"""
 	looks for links of a domain's ticker homepage
 	returns -> list on success, None on error
 	:param soup: a beautifulsoup object
 	:param ID: the url path to indicate how to parse the soup object
 	:type ID: string
-	'''
+	"""
 	if ID == 'quote':       # bloomberg / thestreet
 		urls = soup.find_all('a', attrs={'class': 'news-story__url'}, href=True)
 		# if not (urls is None): return list(map(lambda url: url['href'], urls))
@@ -144,17 +145,31 @@ def crawl_home_page(soup, ID):
 		if not (urls is None): return [base + url['href'] for url in urls.find_all('a')]; return None
 	return None
 
-def scrape(url, source, curious=False, ticker=None, date_checker=True, length_checker=False, min_length=30, crawl_page=False, industry=True, sector=True):
-	'''
-	parses the url for 
-	:param url: a web url
+def scrape(url, source, curious=False, ticker=None, date_checker=True, length_checker=False, min_length=30, crawl_page=False, find_industry=True, find_sector=True):
+	"""
+	main parser function, initalizes WebNode and fills in the data
+	returns -> WebNode | list on success, None on error 
+	:param url: url to parse
 	:type url: string
-	:param source: the domain used in the query
+	:param souce: the source provided in the query
 	:type source: string
-	:param curious: ensure that the url is from the queried source
+	:param curious: determines if the function should check to see if the domain matches the source
 	:type curious: boolean
-
-	'''
+	:param ticker: a stock ticker, used to find more specific information
+	:type ticker: string
+	:param date_checker: determines if the function should ensure date is not None
+	:type date_checker: boolean
+	:param length_checker: determines if the function should ensure the article has at least the amount of min_length
+	:type length_checker: boolean
+	:param min_length: the minimum amount of words if length_checker is set to true
+	:type min_length: int
+	:param crawl_page: determines if the function should look for sub-urls in the article 
+	:type crawl_page: boolean
+	:param find_industry: determines if the function should look for the industry of the ticker (ticker must be not None)
+	:type find_industry: boolean
+	:param find_sector: determines if the function should look for the sector of the ticker (ticker must be not None)
+	:type find_sector: boolean
+	"""
 	url_obj = urlparse(url)
 	if not url_obj: return None
 	if not validate_url(url_obj, source, curious=curious): return None    
@@ -185,7 +200,7 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 	industry, sector = '', ''
 	
 	# look for industry and sector values
-	if (industry or sector) and ticker:
+	if (find_industry or find_sector) and ticker:
 		requestHandler = RequestHandler()
 		google_url = 'https://www.google.com/finance?&q='+ticker
 		req = requestHandler.get(google_url)
@@ -196,10 +211,10 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 		next_ = False
 		for a in container:
 			if next_: 
-				industry = a.text.strip()
+				if find_industry: industry = a.text.strip()
 				break
 			if a.get('id') == 'sector': 
-				sector = a.text.strip()
+				if find_sector: sector = a.text.strip()
 				next_ = True
 
 	classification = -1000
@@ -208,6 +223,16 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 	return WebNode(url, pubdate, article, words, sentences, industry, sector, classification)
 
 def classify(pubdate, ticker, offset=10):
+	"""
+	finds an associated classification based on the stock price fluctiation of the given ticker
+	returns -> int {-1000: not_found, -1.0: declined, 0.0: stayed the same, 1.0:increeased}
+	:param pubdate: the publishing date of the article
+	:type pubdate: datetime object
+	:param ticker: the stock ticker to search the API for
+	:type ticker: string
+	:param offset: the interval to for stock price change (stockprice[pubdate+offset(minutes)] - stockprice[pubdate])
+	:type offset: int
+	"""
 	not_found = -1000
 	
 	today = datetime.today()
@@ -256,44 +281,69 @@ def classify(pubdate, ticker, offset=10):
 	else: return not_found
 	
 def same_date(date1, date2):
-	'''
+	"""
 	checks if two dates are equal (if one or both is not a valid datetime)
 	returns -> int in the set {0,1}
 	:param date(1/2): datetime | time object
-	'''
+	"""
 	if (date1.month == date2.month) and (date1.day == date2.day) and (date1.hour == date2.hour) and (date1.minute == date2.minute): return 1
 	return 0
 
 def pre_mrkt_close(date, mrkt_close):
-	'''
+	"""
 	checks if a given date is before the market close (just need to check hour/minute params)
 	returns -> boolean
 	:param date: the date in question
 	:type date: datetime object
 	:param mrkt_close: when the stock market closes
 	:type mrkt_close: datetime object
-	'''
+	"""
 	if date.hour < mrkt_close.hour: return True
 	elif date.minute < mrkt_close.minute: return True
 	return False
 
 def str2unix(datestr):
+	"""
+	converts a string date to a unix timestamp 
+	returns -> datetime object
+	:param datestr: raw representation of date from API
+	:type datestr: string
+	"""
 	date_UTC = datetime.fromtimestamp(int(datestr))	#	dates come in Unix time and converted to local 
 	date1, date2 = datetime.now(timezone('US/Eastern')), datetime.now()
 	rdelta = date1.hour - date2.hour 					#	convert local time to EST (the timezone the data was recorded in)
 	return date_UTC + timedelta(hours=rdelta)	
 
 def name2domain(name):
+	"""
+	finds a correlating domain for a source input
+	returns -> string on success, None on error
+	:param name: the full source name
+	:type name: string
+	"""
 	domains = {
-		'Motley fool': 'fool',
-		'Bloomberg': 'bloomberg',
-		'Seeking alpha': 'seekingalpha',
-		'Yahoo Finance': 'finance.yahoo'
+		'motley fool': 'fool',
+		'bloomberg': 'bloomberg',
+		'seeking alpha': 'seekingalpha',
+		'yahoo finance': 'finance.yahoo'
 	}
 	if not (name in domains.keys()): return None
 	return domains[name.lower()]
 
 def domain2name(domain):
-	pass
+	"""
+	finds a correlating (full) source name for a domain input
+	returns -> string on success, None on error
+	:param domain: the domain name
+	:type domain: string
+	"""
+	names = {
+		'fool': 'motley fool',
+		'bloomberg': 'bloomberg',
+		'seekingalpha': 'seeking alpha',
+		'finance.yahoo': 'yahoo finance'
+	}
+	if not (domain in names.keys()): return None
+	return names[domain.lower()]
 
 

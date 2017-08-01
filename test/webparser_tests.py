@@ -33,8 +33,14 @@ def soupify(url):
 
 
 def valid_url_test():
+    valid_urls = []
+    invalid_urls = []
+    for url in valid_urls:
+        
     pass
 
+def str2unix_test():
+    pass
 
 def homepage_test():
     Link = namedtuple('Link', 'url source')
