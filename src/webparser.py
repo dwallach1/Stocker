@@ -32,7 +32,7 @@ class WebNode(object):
 	def __init__(self, **kwargs):
 		"""represents an entry in data.csv that will be used to train the sentiment classifier"""
 		for key, value in kwargs.items():
-      		setattr(self, key, value)
+      			setattr(self, key, value)
 	
 	def __iter__(self):
     		attrs = [attr for attr in dir(self) if attr[:2] != '__']
@@ -212,32 +212,33 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 	p = paths[0].lower()
 	if p in homepages(): return crawl_home_page(soup, p)
    	
-   	args = {'url':url}
+   	wn_args = {'url':url}
 	pubdate = find_date(soup, source, paths[0])
 	if pubdate is None and date_checker: return None
-	args['pubdate'] = pubdate
+	wn_args['pubdate'] = pubdate
 
 	article = find_article(soup, source, paths[0])
 	logger.info('found pubdate to be: {}'.format(str(pubdate)))
-	args['article'] = article
+	wn_args['article'] = article
 
 	words = article.decode('utf-8').split(u' ')
 	if length_checker and len(words) < min_length: return None
 	sentences = list(map(lambda s: s.encode('utf-8'), re.split(r' *[\.\?!][\'"\)\]]* *', article.decode('utf-8'))))
-	args['words'] = words
-	args['sentences'] = sentences
+	wn_args['words'] = words
+	wn_args['sentences'] = sentences
 	
 	if (find_industry or find_sector) and ticker:
 		industry, sector = get_sector_industry(ticker)
-		if find_industry: 
+		if find_industry: wn_args['industry'] = industry
+		if find_sector: wn_args['sector'] = sector
 
 	# classification = -1000
 	if ticker:	
 		classification = classify(pubdate, ticker)
-		args['classification'] = classification.status
-		args['magnitude'] = classification.magnitude
+		wn_args['classification'] = classification.status
+		wn_args['magnitude'] = classification.magnitude
 	# return WebNode(url, pubdate, article, words, sentences, industry, sector, classification)
-	return WebNode(**args)
+	return WebNode(**wn_args)
 
 def classify(pubdate, ticker, offset=10):
 	"""
