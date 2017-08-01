@@ -282,10 +282,12 @@ def classify(pubdate, ticker, offset=10):
 			highp.append(float(high))
 			lowp.append(float(low))
 
-	bitmap = map(lambda timestamp: same_date(timestamp, pubdate), dates)
-	if sum(bitmap) == 0: map(lambda timestamp: same_date(timestamp, pubdate+timedelta(hours=3)), dates) # possibly date was in PDT time
-	if sum(bitmap) > 1: return not_found # this is an error case
-	if sum(bitmap) == 0: 
+	bitmap = map(lambda timestamp: same_date(timestamp, pubdate), dates) # assume publishing date is in EST time
+	bitsum = sum(bitmap) 
+	#if bitsum == 0: map(lambda timestamp: same_date(timestamp, pubdate+timedelta(hours=3)), dates) # possibly date was in PDT time
+	if bitsum == 0: bitsum = sum(same_date(timestamp, pubdate+timedelta(hours=3)) for timestamp indates) # possibly date was in PDT time
+	if bitsum > 1: return not_found # this is an error case
+	if bitsum == 0: 
 		logger.warn('could not find associated stock price for ticker: %s' % ticker)
 		return not_found
 	
