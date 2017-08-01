@@ -28,17 +28,8 @@ class RequestHandler():
 			return None
 
 class WebNode(object):
-	"""represents an entry in data.csv that will be used to train the sentiment classifier"""
-	# def __init__(self, url, pubdate, article, words, sentences, industry, sector, classification):
-	# 	self.url = url              # string
-	# 	self.pubdate = pubdate      # datetime
-	# 	self.article = article      # article
-	# 	self.words = words          # list
-	# 	self.sentences = sentences  # list
-	# 	self.industry = industry    # string
-	# 	self.sector = sector        # string
-	# 	self.classification = classification  #int
 	def __init__(self, **kwargs):
+		"""represents an entry in data.csv that will be used to train the sentiment classifier"""
 		for key, value in kwargs.items():
       		setattr(self, key, value)
 
@@ -157,25 +148,20 @@ def crawl_home_page(soup, ID):
 	"""
 	if ID == 'quote':       # bloomberg / thestreet
 		urls = soup.find_all('a', attrs={'class': 'news-story__url'}, href=True)
-		# if not (urls is None): return list(map(lambda url: url['href'], urls))
 		if not (urls is None): return [url['href'] for url in urls]
 		urls = soup.find_all('div', attrs={'class': 'news-story__url'}, href=True) 
-		# if not (urls is None): return list(map(lambda url: url['href'], urls)); return None
 		if not (urls is None): return [url['href'] for url in urls]; return None
 	elif ID == 'symbol':  # seeking alpha
 		base = 'https://seekingalpha.com'
 		urls = soup.find_all('a', attrs={'sasource': 'qp_latest'}, href=True)
-		# if not (urls is None): return list(map(lambda url: base + url['href'], urls)); return None
 		if not (urls is None): return [base + url['href'] for url in urls]; return None  
 	elif ID == 'finance':   # reuters
 		base = 'http://reuters.com'
 		urls = soup.find('div', attrs={'id': 'companyOverviewNews'})
-		# if not (urls is None): return list(map(lambda url: base + url['href'], urls.find_all('a'))); return None
 		if not (urls is None): return [base + url['href'] for url in urls.find_all('a')]; return None
 	elif ID == 'markets':   # investopedia
 		base = 'http://investopedia.com'
 		urls = soup.find('section', attrs={'id':'News'})
-		# if not (urls is None): return list(map(lambda url: base + url['href'], urls.find_all('a'))); return None
 		if not (urls is None): return [base + url['href'] for url in urls.find_all('a')]; return None
 	return None
 
