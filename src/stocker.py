@@ -3,11 +3,10 @@ from __future__ import print_function
 stocker.py
 Author: David Wallach
 
-- Uses BeautifulSoup for scraping the data from URLs
-
 This Python module has several purposes oriented around mining data from the web.
-The functionality is comprised of gathering urls from google quereis and then getting the data from 
-those articles such as the article body and publishing date
+The functionality is comprised of gathering urls from google queries, parsing the information, such as the article body 
+and publishing date, and then returning WebNodes with the found data. WebNodes are configured based on the parameters that 
+the main stocker function is called with. 
 """
 import os, sys, logging, json, string
 import random
@@ -100,9 +99,6 @@ class Stocker(object):
 
     def build_queries(self, depth=1):
         """creates google queries based on the provided stocks and news sources"""
-        # if printer:
-        #     loader = Loading()
-        #     loader.start('Building queries')
         i, j = 0, '.'
         for t in self.tickers:
             for s in self.sources:
@@ -128,20 +124,19 @@ class Stocker(object):
                                                                                 dynamic_ncols=True, leave=True, miniters=1)
         else: t = range(total) 
         for i in t:
-            q = self.queries[i]
+            curr_q = self.queries[i]
             #_ticker, _source, _query = q.ticker, q.source, q.string 
-            if printer: sysprint('Processing query: {}'.format(q.string))
-            logger.debug('Processing query: {}'.format(q.string))
+            if printer: sysprint('Processing query: {}'.format(curr_q.string))
+            logger.debug('Processing query: {}'.format(curr_q.string))
             if gui:
-                t.set_description(q.ticker.upper())
-                t.set_postfix(source=q.source)
+                t.set_description(curr_q.ticker.upper())
+                t.set_postfix(source=curr_q.source)
                 t.update()
 
-            # currQ = Query(ticker, source, string)
-            #possible_urls = self.get_urls(currQ)
-            #urls = self.remove_dups(currQ, possibile_urls)
-            #nodes = self.build_nodes(currQ, urls)
-            # node_dict = [dict(node) for node in nodes]
+            #urls = self.get_urls(curr_q)
+            # ADD remove dups into get_urls FUNC: --- elf.remove_dups(curr_q, possibile_urls)
+            # nodes = self.build_nodes(curr_q, urls)
+            # if not(nodes == None): node_dict = [dict(node) for node in nodes]; node_dict = None
             worker = Worker(q.ticker, q.source, q.string)
             worker.get_urls()
             worker.remove_dups(self.json_path)
