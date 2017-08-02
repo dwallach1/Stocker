@@ -10,7 +10,6 @@ The functionality is comprised of gathering urls from google quereis and then ge
 those articles such as the article body and publishing date
 """
 import os, sys, logging, json, string
-import threading, time
 import random
 from collections import namedtuple
 import time, csv, re
@@ -31,30 +30,12 @@ def sysprint(text):
     sys.stdout.write('\r{}\033[K'.format(text))
     sys.stdout.flush()
 
-class Loading:
-    busy = False
-    def loading(self, text):
-        i, j = 0, '.'
-        while self.busy:
-            sysprint('{}'.format(text) + j*(i % 3))
-            i += 1
-
-    def start(self, text):
-        self.busy = True
-        threading.Thread(target=self.loading, kwargs={'text':text}).start()
-
-    def stop(self):
-        self.busy = False
-        time.sleep(1)
-
  # def moveup(self, lines):
  #        for _ in range(lines):
  #            sys.stdout.write("\x1b[A")
 
 def SNP_500():
-    if printer:
-        loader = Loading()
-        loader.start('Loading SNP500')
+    if printer: sysprint('Loading SNP500')
     url = 'http://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     req = RequestHandler().get(url)
     if req == None: return 
@@ -66,28 +47,25 @@ def SNP_500():
         if len(col) > 0:
             ticker = str(col[0].string.strip())
             tickers.append(ticker)
-    if printer: loader.stop()
+    if printer: sysprint('Finished loading SNP500')
     return tickers
 
 def NYSE_Top100():
-    if printer: 
-        loader = Loading()
-        loader.start('Loading NYSE100')
+    if printer: sysprint('Loading NYSE100')
     url = 'http://online.wsj.com/mdc/public/page/2_3021-activnyse-actives.html'
     req = RequestHandler().get(url)
     if req == None: return None
     soup = BS(req.content, 'html.parser')
-    if printer: loader.stop()
+    if printer: sysprint('Finished loading NYSE100')
     return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
 
 def NASDAQ_Top100():
-    if printer:
-        loader = Loading()
-        loader.start('Loading NASDAQ100')
+    if printer: sysprint('Loading NASDAQ100')
     url = 'http://online.wsj.com/mdc/public/page/2_3021-activnnm-actives.html'
     req = RequestHandler().get(url)
+    if req == None: return None
     soup = BS(req.content, 'html.parser')
-    if printer: loader.stop()
+    if printer: sysprint('Finished loading NASDAQ100')
     return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
 
 def valid_sources(): return ['bloomberg', 'seekingalpha', 'reuters', 'thestreet', 'investopedia']
@@ -96,10 +74,8 @@ def querify(ticker, source, string): return Query(ticker, source, '+'.join(strin
 def googler(string):
     url = 'https://www.google.com/search?site=&source=hp&q='+'+'.join(string)+'&gws_rd=ssl'
     req = RequestHandler().get(url)
-
     if req == None: return []
-    soup = BS(req.content,'html.parser')
-        
+    soup = BS(req.content,'html.parser')  
     reg=re.compile('.*&sa=')
     urls = []
     for item in soup.find_all(attrs={'class' : 'g'}): urls.append(reg.match(item.a['href'][7:]).group()[:-4])
@@ -165,7 +141,7 @@ class Stocker(object):
             #possible_urls = self.get_urls(currQ)
             #urls = self.remove_dups(currQ, possibile_urls)
             #nodes = self.build_nodes(currQ, urls)
-            
+            # node_dict = [dict(node) for node in nodes]
             worker = Worker(q.ticker, q.source, q.string)
             worker.get_urls()
             worker.remove_dups(self.json_path)
