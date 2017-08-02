@@ -89,13 +89,15 @@ def googler(string):
                     
 class Stocker(object):
     """stocker class manages the work for mining data and writing it to a csv file"""
+    
+    requestHandler = RequestHandler()
     def __init__(self, tickers, sources, csv_path, json_path):
         self.tickers = tickers
         self.sources = sources
         self.csv_path = csv_path
         self.json_path = json_path
         self.queries = []
-        self.requestHandler = RequestHandler()
+        #self.requestHandler = RequestHandler()
 
     def build_queries(self, depth=1):
         """creates google queries based on the provided stocks and news sources"""
@@ -125,7 +127,6 @@ class Stocker(object):
         else: t = range(total) 
         for i in t:
             curr_q = self.queries[i]
-            #_ticker, _source, _query = q.ticker, q.source, q.string 
             if printer: sysprint('Processing query: {}'.format(curr_q.string))
             logger.debug('Processing query: {}'.format(curr_q.string))
             if gui:
