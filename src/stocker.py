@@ -160,6 +160,11 @@ class Stocker(object):
                 t.set_description(q.ticker.upper())
                 t.set_postfix(source=q.source)
                 t.update()
+
+            # currQ = Query(ticker, source, string)
+            #possible_urls = self.get_urls(currQ)
+            #urls = self.remove_dups(currQ, possibile_urls)
+            #nodes = self.build_nodes(currQ, urls)
             
             worker = Worker(q.ticker, q.source, q.string)
             worker.get_urls()
