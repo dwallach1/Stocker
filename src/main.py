@@ -13,11 +13,6 @@ from stocker import Stocker, SNP_500, NYSE_Top100, NASDAQ_Top100, valid_sources,
 
 
 def gather_data():
-    # tickers = snp_500()
-    # sources = valid_sources()
-    # nyse, nasdaq = [], []
-    # while len(nyse) == 0: nyse = NYSE_Top100()
-    # while len(nasdaq) == 0: nasdaq = NASDAQ_Top100()
     stocks_path = '../data/stocks.json'
     with open(stocks_path, 'r') as f:
         data = json.load(f)
@@ -25,15 +20,16 @@ def gather_data():
     nyse100, nasdaq100, snp500 = data['NYSE100'], data['NASDAQ100'], data['SNP500']
     other_stocks = ['AAPL', 'GOOG', 'GPRO', 'TSLA', 'APRN', 'FB', 'NVDA', 'SNAP', 'SPY', 'NFLX', 'AMZN', 'AMD']
     tickers = nyse100 + nasdaq100 + snp500 + other_stocks
-    tickers = other_stocks[1]
+    tickers = other_stocks
     sources = ['seekingalpha', 'bloomberg', 'reuters']
 
-    # tickers = ['APRN']
-    # sources = ['bloomberg']
+    tickers = ['APRN']
+    sources = ['bloomberg']
     csv_path = "../data/examples.csv"
     json_path = "../data/links.json"
+    flags = {'date_checker': True, 'classification': True, 'magnitude': True}
     dm = Stocker(tickers, sources, csv_path, json_path)
-    dm.stock(depth=2, gui=False)
+    dm.stock(depth=2,  flags=flags)
 
 
 def init_logger():
@@ -43,7 +39,6 @@ def init_logger():
                         format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
                         datefmt='%H:%M:%S',
                         level=logging.DEBUG)
-
 
 def main():
     gather_data()

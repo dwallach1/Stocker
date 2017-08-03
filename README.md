@@ -79,9 +79,11 @@ a sentiment analysis classifier.
 
 
 # Flags
+__ 
 * gui=True : when set to true uses tdqm to show a progress bar as well as the current ticker & source it is parsing
 * csv=True : tells stocker if it should write the output to a csv file
 * json=True : tells stocker if it should write the newly parsed links to a json file to avoid duplicates
+
 * curious=False : is set to true, stocker won't ensure that the link it is parsing is from the source field of the query
 * industry=True : looks up and store the industry associated with the ticker 
 * sector=True : looks up and store the industry associated with the ticker

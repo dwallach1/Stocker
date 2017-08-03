@@ -1,17 +1,17 @@
-import re, logging
+import re, logging, time
 from urlparse import urlparse
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 import requests
 from datetime import datetime, timedelta
 from pytz import timezone
 import dateutil.parser as dateparser
-import time
 import numpy as np
 from bs4 import BeautifulSoup as BS
 import dryscrape
 
 logger = logging.getLogger(__name__)
 GOOGLE_WAIT = 20
+PriceChange = namedtuple('PriceChange', 'status magnitude')
 
 class RequestHandler():
 	"""handles making HTTP requests using request library"""
@@ -29,8 +29,8 @@ class RequestHandler():
 			return None
 
 class WebNode(object):
+	"""represents an entry in data.csv that will be used to train the sentiment classifier"""
 	def __init__(self, **kwargs):
-		"""represents an entry in data.csv that will be used to train the sentiment classifier"""
 		for key, value in kwargs.items():
       			setattr(self, key, value)
 	
@@ -39,7 +39,7 @@ class WebNode(object):
     		for attr in attrs:
       			yield attr, getattr(self, attr)
 
-PriceChange = namedtuple('PriceChange', 'status magnitude')
+
 
 
 def homepages(): return ['quote', 'symbol', 'finance', 'markets']
@@ -168,7 +168,8 @@ def crawl_home_page(soup, ID):
 		if not (urls is None): return [base + url['href'] for url in urls.find_all('a')]; return None
 	return None
 
-def scrape(url, source, curious=False, ticker=None, date_checker=True, length_checker=False, min_length=30, crawl_page=False, find_industry=True, find_sector=True):
+# def scrape(url, source, curious=False, ticker=None, date_checker=True, length_checker=False, min_length=30, find_industry=True, find_sector=True, words=True, sentences=True, classification=True, magnitude=True):
+def scrape(url, source, ticker=None, min_length=30, **kwargs):
 	"""
 	main parser function, initalizes WebNode and fills in the data
 	returns -> WebNode | list on success, None on error 
@@ -186,58 +187,57 @@ def scrape(url, source, curious=False, ticker=None, date_checker=True, length_ch
 	:type length_checker: boolean
 	:param min_length: the minimum amount of words if length_checker is set to true
 	:type min_length: int
-	:param crawl_page: determines if the function should look for sub-urls in the article 
-	:type crawl_page: boolean
-	:param find_industry: determines if the function should look for the industry of the ticker (ticker must be not None)
-	:type find_industry: boolean
-	:param find_sector: determines if the function should look for the sector of the ticker (ticker must be not None)
-	:type find_sector: boolean
 	"""
+	flags = defaultdict(lambda: False)
+	for param in kwargs:
+		flags[param] = kwargs[param]
+
 	url_obj = urlparse(url)
 	if not url_obj: return None
-	if not validate_url(url_obj, source, curious=curious): return None    
-	# requestHandler = RequestHandler()
-	# req = requestHandler.get(url)
-	# if req.content == None: return None
-	# soup = BS(req.content, 'html.parser')
-	
+	if not validate_url(url_obj, source, curious=flags['curious']): return None
+
+	# visit page and triggger JS -> capture html output as Soup object
 	session = dryscrape.Session()
 	session.visit(url)
 	response = session.body()
 	if response == None: return None
 	soup = BS(response, 'html.parser')
 	
-
+	# check url args
 	paths = url_obj.path.split('/')[1:] # first entry is '' so exclude it
 	p = paths[0].lower()
 	if p in homepages(): return crawl_home_page(soup, p)
    	
+   	# search for publishing date
    	wn_args = {'url':url}
 	pubdate = find_date(soup, source, paths[0])
-	if pubdate is None and date_checker: return None
+	if pubdate is None and flags['date_checker']: return None
 	wn_args['pubdate'] = pubdate
 
+	# search for article
 	article = find_article(soup, source, paths[0])
 	logger.info('found pubdate to be: {}'.format(str(pubdate)))
 	wn_args['article'] = article
 
+	# generate word and sentence lists
 	words = article.decode('utf-8').split(u' ')
 	if length_checker and len(words) < min_length: return None
 	sentences = list(map(lambda s: s.encode('utf-8'), re.split(r' *[\.\?!][\'"\)\]]* *', article.decode('utf-8'))))
-	wn_args['words'] = words
-	wn_args['sentences'] = sentences
+	if flags['words']: 		wn_args['words'] = words
+	if flags['sentences']: 	wn_args['sentences'] = sentences
 	
-	if (find_industry or find_sector) and ticker:
+	# handle indutry/sector parsing
+	if (flags['find_industry'] or flags['find_sector']) and ticker:
 		industry, sector = get_sector_industry(ticker)
-		if find_industry: wn_args['industry'] = industry
-		if find_sector: wn_args['sector'] = sector
+		if flags['find_industry']: 	wn_args['industry'] = industry
+		if flags['find_sector']: 	wn_args['sector'] = sector
 
-	# classification = -1000
-	if ticker:	
-		classification = classify(pubdate, ticker)
-		wn_args['classification'] = classification.status
-		wn_args['magnitude'] = classification.magnitude
-	# return WebNode(url, pubdate, article, words, sentences, industry, sector, classification)
+
+	if flags['classification'] and ticker:	
+		class_ = classify(pubdate, ticker)
+		wn_args['classification'] = class_.status
+		if flags['magnitude']: wn_args['magnitude'] = class_.magnitude
+
 	return WebNode(**wn_args)
 
 def classify(pubdate, ticker, offset=10):
@@ -285,7 +285,7 @@ def classify(pubdate, ticker, offset=10):
 	bitmap = map(lambda timestamp: same_date(timestamp, pubdate), dates) # assume publishing date is in EST time
 	bitsum = sum(bitmap) 
 	#if bitsum == 0: map(lambda timestamp: same_date(timestamp, pubdate+timedelta(hours=3)), dates) # possibly date was in PDT time
-	if bitsum == 0: bitsum = sum(same_date(timestamp, pubdate+timedelta(hours=3)) for timestamp indates) # possibly date was in PDT time
+	if bitsum == 0: bitsum = sum(same_date(timestamp, pubdate+timedelta(hours=3)) for timestamp in dates) # possibly date was in PDT time
 	if bitsum > 1: return not_found # this is an error case
 	if bitsum == 0: 
 		logger.warn('could not find associated stock price for ticker: %s' % ticker)
