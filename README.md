@@ -79,12 +79,12 @@ a sentiment analysis classifier.
 
 
 # Function Parameters
-
-Each Stocker instance acts as a manager and delegates tasks 
+**args for Stocker's stock method**
 * gui=True : when set to true uses tdqm to show a progress bar as well as the current ticker & source it is parsing
 * csv=True : tells stocker if it should write the output to a csv file
 * json=True : tells stocker if it should write the newly parsed links to a json file to avoid duplicates
 * flags={} : a dictionary of kwargs to be used when parsing articles
+	**kwargs recognized by Stocker**
 	* ticker=None : used to find information associated with the stock ticker
 	* min_length=30 : the minimum amount of words each article must have, only enforced if length_checker = True 
 	* curious=False : is set to true, stocker won't ensure that the link it is parsing is from the source field of the query
