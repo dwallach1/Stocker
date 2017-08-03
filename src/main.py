@@ -29,7 +29,7 @@ def gather_data():
     json_path = "../data/links.json"
     flags = {'date_checker': True, 'classification': True, 'magnitude': True}
     dm = Stocker(tickers, sources, csv_path, json_path)
-    dm.stock(depth=2,  flags=flags)
+    dm.stock(depth=1, gui=False, flags=flags)
 
 
 def init_logger():

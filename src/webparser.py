@@ -39,9 +39,6 @@ class WebNode(object):
     		for attr in attrs:
       			yield attr, getattr(self, attr)
 
-
-
-
 def homepages(): return ['quote', 'symbol', 'finance', 'markets']
 
 def validate_url(url_obj, source, curious=False):
@@ -103,22 +100,22 @@ def find_date(soup, source, container):
 		if s == 'bloomberg':
 			if c == 'press-releases':
 				date_html =  soup.find('span', attrs={'class': 'pubdate'})
-				if not (date_html is None): return dateparser.parse(date_html.text.strip(), fuzzy=True); return None
+				if not (date_html is None): return dateparser.parse(date_html.text.strip(), fuzzy=True)
 			date_html = soup.find('time')
-			if not (date_html is None): return dateparser.parse(date_html.text.strip(), fuzzy=True); return None
+			if not (date_html is None): return dateparser.parse(date_html.text.strip(), fuzzy=True)
 		elif s == 'seekingalpha':
 			if c == 'filing': return None
 			date_html = soup.find('time', attrs={'itemprop': 'datePublished'})
-			if not (date_html is None): return dateparser.parse(date_html['content'], fuzzy=True); return None
+			if not (date_html is None): return dateparser.parse(date_html['content'], fuzzy=True)
 		elif s == 'reuters':
 			date_html = soup.find('div', attrs={'class': 'ArticleHeader_date_V9eGk'})
-			if not (date_html is None): return dateparser.parse(''.join(date_html.text.strip().split('/')[:2]), fuzzy=True); return None
+			if not (date_html is None): return dateparser.parse(''.join(date_html.text.strip().split('/')[:2]), fuzzy=True)
 		elif s == 'investopedia':
 			date_html = soup.find('span', attrs={'class':'by-author'})
-			if not (date_html is None): return dateparser.parse(date_html.text.strip(), fuzzy=True); return None
+			if not (date_html is None): return dateparser.parse(date_html.text.strip(), fuzzy=True)
 		elif s == 'thestreet':
 			date_html = soup.find('time', attrs={'itemprop':'datePublished'})
-			if not (date_html is None): return dateparser.parse(date_html['datetime'], fuzzy=True); return None
+			if not (date_html is None): return dateparser.parse(date_html['datetime'], fuzzy=True)
 		
 		# TODO: module not specialized in source + need to account for errors
 		# try:
@@ -153,22 +150,21 @@ def crawl_home_page(soup, ID):
 		urls = soup.find_all('a', attrs={'class': 'news-story__url'}, href=True)
 		if not (urls is None): return [url['href'] for url in urls]
 		urls = soup.find_all('div', attrs={'class': 'news-story__url'}, href=True) 
-		if not (urls is None): return [url['href'] for url in urls]; return None
+		if not (urls is None): return [url['href'] for url in urls]
 	elif ID == 'symbol':  # seeking alpha
 		base = 'https://seekingalpha.com'
 		urls = soup.find_all('a', attrs={'sasource': 'qp_latest'}, href=True)
-		if not (urls is None): return [base + url['href'] for url in urls]; return None  
+		if not (urls is None): return [base + url['href'] for url in urls]
 	elif ID == 'finance':   # reuters
 		base = 'http://reuters.com'
 		urls = soup.find('div', attrs={'id': 'companyOverviewNews'})
-		if not (urls is None): return [base + url['href'] for url in urls.find_all('a')]; return None
+		if not (urls is None): return [base + url['href'] for url in urls.find_all('a')]
 	elif ID == 'markets':   # investopedia
 		base = 'http://investopedia.com'
 		urls = soup.find('section', attrs={'id':'News'})
-		if not (urls is None): return [base + url['href'] for url in urls.find_all('a')]; return None
+		if not (urls is None): return [base + url['href'] for url in urls.find_all('a')]
 	return None
 
-# def scrape(url, source, curious=False, ticker=None, date_checker=True, length_checker=False, min_length=30, find_industry=True, find_sector=True, words=True, sentences=True, classification=True, magnitude=True):
 def scrape(url, source, ticker=None, min_length=30, **kwargs):
 	"""
 	main parser function, initalizes WebNode and fills in the data
@@ -221,7 +217,7 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
 
 	# generate word and sentence lists
 	words = article.decode('utf-8').split(u' ')
-	if length_checker and len(words) < min_length: return None
+	if flags['length_checker'] and len(words) < min_length: return None
 	sentences = list(map(lambda s: s.encode('utf-8'), re.split(r' *[\.\?!][\'"\)\]]* *', article.decode('utf-8'))))
 	if flags['words']: 		wn_args['words'] = words
 	if flags['sentences']: 	wn_args['sentences'] = sentences
@@ -282,16 +278,13 @@ def classify(pubdate, ticker, offset=10):
 			highp.append(float(high))
 			lowp.append(float(low))
 
-	bitmap = map(lambda timestamp: same_date(timestamp, pubdate), dates) # assume publishing date is in EST time
+	bitmap =  [same_date(date, pubdate) for date in dates] # assume publishing date is in EST time
 	bitsum = sum(bitmap) 
-	#if bitsum == 0: map(lambda timestamp: same_date(timestamp, pubdate+timedelta(hours=3)), dates) # possibly date was in PDT time
 	if bitsum == 0: bitsum = sum(same_date(timestamp, pubdate+timedelta(hours=3)) for timestamp in dates) # possibly date was in PDT time
 	if bitsum > 1: return not_found # this is an error case
-	if bitsum == 0: 
-		logger.warn('could not find associated stock price for ticker: %s' % ticker)
-		return not_found
+	try:		idx = bitmap.index(1) # at this point, we know there is a match
+	except:		return not_found
 	
-	idx = bitmap.index(1) # at this point, we know there is a match
 	now = datetime.now()
 	market_close = datetime(year=now.year, month=now.month, day=now.day, hour=16, minute=30)
 	diff = (market_close.minute - dates[idx].minute)

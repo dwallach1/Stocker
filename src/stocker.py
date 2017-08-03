@@ -47,6 +47,17 @@ class Stocker(object):
                 self.queries.append(Query(t, s, string1))
         logger.debug('built {} queries'.format(len(self.queries)))
 
+    def get_name(self, ticker):
+        """convert the ticker to the associated company name"""
+        url = 'http://d.yimg.com/autoc.finance.yahoo.com/autoc?query={}&region=1&lang=en'.format(ticker.upper())
+        req = self.requestHandler.get(url)
+        if req == None: return None
+        req = req.json()
+
+        for data in req['ResultSet']['Result']:
+            if data['symbol'] == ticker:
+                return data['name']
+
     def stock(self, gui=True, nodes=False, json=True, csv=True, depth=1, query=True, shuffle=True, flags={}):
         """main function for the class. Begins the worker to get the information based on the queries given"""
         if query: self.build_queries(depth=depth)
@@ -72,17 +83,56 @@ class Stocker(object):
                 t.set_postfix(source=curr_q.source)
                 t.update()
 
-            urls = self.get_urls(curr_q)
+            urls = self.get_urls(curr_q, json)
             nodes, urls = self.build_nodes(curr_q, urls, flags=flags)
             node_dict = None
             if not(nodes == None): node_dict = [dict(node) for node in nodes]
 
             if not (node_dict is None):
                 if csv:     self.write_csv(node_dict)
-                if json:    self.write_json(worker.urls, worker.ticker)
+                if json:    self.write_json(urls, curr_q.ticker)
+        print('\nDone.')
         if gui: t.close()
         if nodes: return nodes
-        print('\nDone.')
+        
+    def get_urls(self, query, json):
+        """searches the query in google and returns the resulting urls"""
+        url = 'https://www.google.co.in/search?site=&source=hp&q={}&gws_rd=ssl'.format(query.string)
+        req = self.requestHandler.get(url)
+        if req == None: return None
+
+        soup = BS(req.content,'html.parser')
+        reg = re.compile('.*&sa=')
+        new_urls = []
+        for item in soup.find_all(attrs={'class' : 'g'}): new_urls.append(reg.match(item.a['href'][7:]).group()[:-4])
+        logger.debug('found {} links from the query'.format(len(new_urls)))
+        if not json: return new_urls
+        return self.remove_dups(new_urls, query.ticker)
+    
+    def remove_dups(self, urls, ticker):
+        """removes already parsed urls from those found by get_urls"""
+        if not os.path.exists(self.json_path): return urls
+        with open(self.json_path, 'r') as f:
+            data = json.load(f)
+        parsed_urls = data[ticker] if ticker in data else []
+        return [url for url in urls if not (url in parsed_urls)]    
+
+    def build_nodes(self, query, urls, flags):
+        """uses the urls to build WebNodes to be written to the csv output"""
+        if len(urls) == 0: return None, []
+        nodes = []
+        j = '.'
+        for i, url in enumerate(urls):
+            if printer: sysprint('parsing urls for query: {}'.format(query.string) + j*(i % 3))
+            node = scrape(url, query.source, ticker=query.ticker, **flags)
+            if isinstance(node, list):
+                urls += [url for url in node if not(url in urls)]
+                logger.debug('Hit landing page -- crawling for more links')
+            elif node != None: nodes.append(node)
+            else: urls.remove(url)
+        if printer: sysprint ('built {} nodes to write to disk'.format(len(nodes)))
+        logger.debug('built {} nodes to write to disk'.format(len(nodes)))
+        return nodes, urls
 
     def write_csv(self, node_dict):
         """writes the data gathered to a csv file"""
@@ -121,57 +171,12 @@ class Stocker(object):
         with open(self.json_path, 'w') as f: 
             json.dump(data, f, indent=4)
 
-    def get_name(self, ticker):
-        """convert the ticker to the associated company name"""
-        url = 'http://d.yimg.com/autoc.finance.yahoo.com/autoc?query={}&region=1&lang=en'.format(ticker.upper())
-        req = self.requestHandler.get(url)
-        if req == None: return None
-        req = req.json()
-
-        for data in req['ResultSet']['Result']:
-            if data['symbol'] == ticker:
-                return data['name']
-
-
-    def remove_dups(self, urls, ticker):
-        """removes already parsed urls from those found by get_urls"""
-        if not os.path.exists(self.json_path): return 
-        with open(self.json_path, 'r') as f:
-            data = json.load(f)
-        parsed_urls = data[ticker] if ticker in data else []
-        return [url for url in urls if not(url in parsed_urls)]
-
-    def get_urls(self, query):
-        """searches the query in google and returns the resulting urls"""
-        url = 'https://www.google.co.in/search?site=&source=hp&q={}&gws_rd=ssl'.format(query.string)
-        req = self.requestHandler.get(url)
-        if req == None: return None
-
-        soup = BS(req.content,'html.parser')
-        reg=re.compile('.*&sa=')
-        new_urls = []
-        for item in soup.find_all(attrs={'class' : 'g'}): new_urls.append(reg.match(item.a['href'][7:]).group()[:-4])
-        logger.debug('found {} links from the query'.format(len(new_urls)))
-        if not json: return new_urls
-        return self.remove_dups(new_urls, query.ticker)
-        
-
-    def build_nodes(self, query, urls, **kwargs):
-        """uses the urls to build WebNodes to be written to the csv output"""
-        nodes = []
-        j = '.'
-        for i, url in enumerate(urls):
-            if printer: sysprint('parsing urls for query: {}'.format(query.string) + j*(i % 3))
-            node = scrape(url, query.source, ticker=query.ticker, **flags)
-            if isinstance(node, list):
-                urls += [url for url in node if not(url in urls)]
-                logger.debug('Hit landing page -- crawling for more links')
-            elif node != None: nodes.append(node)
-            else: urls.remove(url)
-        if printer: sysprint ('built {} nodes to write to disk'.format(len(nodes)))
-        logger.debug('built {} nodes to write to disk'.format(len(nodes)))
-        return nodes, urls
-
+    
+# -----------------------
+#
+#   EXTERNAL FUNCTIONS
+#
+# -----------------------
 
 def sysprint(text):
     sys.stdout.write('\r{}\033[K'.format(text))
@@ -228,3 +233,7 @@ def googler(string):
     for item in soup.find_all(attrs={'class' : 'g'}): urls.append(reg.match(item.a['href'][7:]).group()[:-4])
     return urls
 
+def earnings_watcher():
+    """ returns a list of tickers of which their earning's reports are scheduled to release today (if weekday)"""
+    url = 'https://www.bloomberg.com/markets/earnings-calendar/us'
+    pass

@@ -78,19 +78,20 @@ a sentiment analysis classifier.
 - [pytz](https://pypi.python.org/pypi/pytz) 
 
 
-# Flags
-__ 
+# Function Parameters
+
+Each Stocker instance acts as a manager and delegates tasks 
 * gui=True : when set to true uses tdqm to show a progress bar as well as the current ticker & source it is parsing
 * csv=True : tells stocker if it should write the output to a csv file
 * json=True : tells stocker if it should write the newly parsed links to a json file to avoid duplicates
-
-* curious=False : is set to true, stocker won't ensure that the link it is parsing is from the source field of the query
-* industry=True : looks up and store the industry associated with the ticker 
-* sector=True : looks up and store the industry associated with the ticker
-* date_checker=True : forces each article to have a date; if no date and date_checker is set to true, it will return None
-* length_checker=False : forces each article to have a word count of at least min_length
-* min_length=30 : the minimum amount of words each article must have, only enforced if length_checker = True 
-* crawl_page=False : if set to True, it will add all the links found in articles to the url list to be parsed
+* flags={} : a dictionary of kwargs to be used when parsing articles
+	* ticker=None : used to find information associated with the stock ticker
+	* min_length=30 : the minimum amount of words each article must have, only enforced if length_checker = True 
+	* curious=False : is set to true, stocker won't ensure that the link it is parsing is from the source field of the query
+	* industry=False : looks up and store the industry associated with the ticker 
+	* sector=False : looks up and store the industry associated with the ticker
+	* date_checker=False : forces each article to have a date; if no date and date_checker is set to true, it will return None
+	* length_checker=False : forces each article to have a word count of at least min_length
 
 
 # Storing Query Data
