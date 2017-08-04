@@ -84,6 +84,8 @@ a sentiment analysis classifier.
 * csv=True : tells stocker if it should write the output to a csv file
 * json=True : tells stocker if it should write the newly parsed links to a json file to avoid duplicates
 * flags={} : a dictionary of kwargs to be used when parsing articles
+	
+
 	**kwargs recognized by Stocker**
 	* ticker=None : used to find information associated with the stock ticker
 	* min_length=30 : the minimum amount of words each article must have, only enforced if length_checker = True 

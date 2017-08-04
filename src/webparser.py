@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, print_function
 import re, logging, time
 from urlparse import urlparse
 from collections import namedtuple, defaultdict
@@ -6,7 +7,9 @@ from datetime import datetime, timedelta
 from pytz import timezone
 import dateutil.parser as dateparser
 import numpy as np
-from bs4 import BeautifulSoup as BS
+from nltk import sent_tokenize
+from nltk.tokenize import RegexpTokenizer
+from bs4 import BeautifulSoup 
 import dryscrape
 
 logger = logging.getLogger(__name__)
@@ -41,6 +44,93 @@ class WebNode(object):
 
 def homepages(): return ['quote', 'symbol', 'finance', 'markets']
 
+def scrape(url, source, ticker=None, min_length=30, **kwargs):
+	"""
+	main parser function, initalizes WebNode and fills in the data
+	returns -> WebNode | list on success, None on error 
+	:param url: url to parse
+	:type url: string
+	:param souce: the source provided in the query
+	:type source: string
+	:param ticker: a stock ticker, used to find more specific information
+	:type ticker: string
+	:param min_length: the minimum amount of words if length_checker is set to true
+	:type min_length: int
+	"""
+	flags = defaultdict(lambda: False)
+	for param in kwargs:
+		flags[param] = kwargs[param]
+
+	url_obj = urlparse(url)
+	if not url_obj: return None
+	if not validate_url(url_obj, source, curious=flags['curious']): return None
+
+	# visit page and triggger JS -> capture html output as Soup object
+	session = dryscrape.Session()
+	session.visit(url)
+	response = session.body()
+	if response == None: return None
+	soup = BeautifulSoup(response, 'html.parser')
+	
+	# check url args
+	paths = url_obj.path.split('/')[1:] # first entry is '' so exclude it
+	p = paths[0].lower()
+	if p in homepages(): return crawl_home_page(soup, p)
+   	
+   	# search for publishing date
+   	wn_args = {'url':url}
+	pubdate = find_date(soup, source, paths[0])
+	if pubdate is None and flags['date_checker']: return None
+	wn_args['pubdate'] = pubdate
+
+	# search for article
+	article = find_article(soup, source, paths[0])
+	logger.info('found pubdate to be: {}'.format(str(pubdate)))
+	wn_args['article'] = article
+
+	# generate word and sentence lists
+	words = map(lambda word: clean(word, True), article.decode('utf-8').split(' '))
+	# words = article.decode('utf-8').split(u' ')
+	if flags['length_checker'] and len(words) < min_length: return None
+	if flags['words']: 		wn_args['words'] = words 
+	if flags['sentences']: 	wn_args['sentences'] = map(lambda sent: clean(sent, False), sent_tokenize(article.decode('utf-8')))
+	
+	# handle indutry/sector parsing
+	if (flags['find_industry'] or flags['find_sector']) and ticker:
+		industry, sector = get_sector_industry(ticker)
+		if flags['find_industry']: 	wn_args['industry'] = industry
+		if flags['find_sector']: 	wn_args['sector'] = sector
+
+
+	if flags['classification'] and ticker:	
+		class_ = classify(pubdate, ticker)
+		wn_args['classification'] = class_.status
+		if flags['magnitude']: wn_args['magnitude'] = class_.magnitude
+
+	return WebNode(**wn_args)
+
+def clean(input_, word):
+	'''
+	cleans the input thats either a sentece or a word
+	returns -> cleaned version of the input (string)
+	:param input_: either a word or sentece to clean
+	:type input_: string
+	:param word: set to True if input_ param is a word
+	:type word: bool 
+	'''
+	end_punct = [',', '.', '?', '!','--', '-']
+	if word:
+		if input_[-1] in end_punct:
+			input_ = input_[:-1]
+	chars = {
+		'\u2019': 	'\'',
+		'\xa0': 	' '
+	}
+	def replace_chars(match):
+		char = match.group(0)
+		return chars[char]
+	return re.sub('(' + '|'.join(chars.keys()) + ')', replace_chars, input_)
+
 def validate_url(url_obj, source, curious=False):
 	"""
 	basic url checking to save overhead
@@ -68,12 +158,11 @@ def get_sector_industry(ticker):
 	:type ticker: string
 	"""
 	industry, sector = '', ''
-	requestHandler = RequestHandler()
 	google_url = 'https://www.google.com/finance?&q='+ticker
-	req = requestHandler.get(google_url)
+	req = RequestHandler().get(google_url)
 	if req == None: return WebNode(url, pubdate, article, words, sentences, industry, sector)
 	
-	s = BS(req.text, 'html.parser')
+	s = BeautifulSoup(req.text, 'html.parser')
 	container = s.find_all('a')
 	next_ = False
 	for a in container:
@@ -164,77 +253,6 @@ def crawl_home_page(soup, ID):
 		urls = soup.find('section', attrs={'id':'News'})
 		if not (urls is None): return [base + url['href'] for url in urls.find_all('a')]
 	return None
-
-def scrape(url, source, ticker=None, min_length=30, **kwargs):
-	"""
-	main parser function, initalizes WebNode and fills in the data
-	returns -> WebNode | list on success, None on error 
-	:param url: url to parse
-	:type url: string
-	:param souce: the source provided in the query
-	:type source: string
-	:param curious: determines if the function should check to see if the domain matches the source
-	:type curious: boolean
-	:param ticker: a stock ticker, used to find more specific information
-	:type ticker: string
-	:param date_checker: determines if the function should ensure date is not None
-	:type date_checker: boolean
-	:param length_checker: determines if the function should ensure the article has at least the amount of min_length
-	:type length_checker: boolean
-	:param min_length: the minimum amount of words if length_checker is set to true
-	:type min_length: int
-	"""
-	flags = defaultdict(lambda: False)
-	for param in kwargs:
-		flags[param] = kwargs[param]
-
-	url_obj = urlparse(url)
-	if not url_obj: return None
-	if not validate_url(url_obj, source, curious=flags['curious']): return None
-
-	# visit page and triggger JS -> capture html output as Soup object
-	session = dryscrape.Session()
-	session.visit(url)
-	response = session.body()
-	if response == None: return None
-	soup = BS(response, 'html.parser')
-	
-	# check url args
-	paths = url_obj.path.split('/')[1:] # first entry is '' so exclude it
-	p = paths[0].lower()
-	if p in homepages(): return crawl_home_page(soup, p)
-   	
-   	# search for publishing date
-   	wn_args = {'url':url}
-	pubdate = find_date(soup, source, paths[0])
-	if pubdate is None and flags['date_checker']: return None
-	wn_args['pubdate'] = pubdate
-
-	# search for article
-	article = find_article(soup, source, paths[0])
-	logger.info('found pubdate to be: {}'.format(str(pubdate)))
-	wn_args['article'] = article
-
-	# generate word and sentence lists
-	words = article.decode('utf-8').split(u' ')
-	if flags['length_checker'] and len(words) < min_length: return None
-	sentences = list(map(lambda s: s.encode('utf-8'), re.split(r' *[\.\?!][\'"\)\]]* *', article.decode('utf-8'))))
-	if flags['words']: 		wn_args['words'] = words
-	if flags['sentences']: 	wn_args['sentences'] = sentences
-	
-	# handle indutry/sector parsing
-	if (flags['find_industry'] or flags['find_sector']) and ticker:
-		industry, sector = get_sector_industry(ticker)
-		if flags['find_industry']: 	wn_args['industry'] = industry
-		if flags['find_sector']: 	wn_args['sector'] = sector
-
-
-	if flags['classification'] and ticker:	
-		class_ = classify(pubdate, ticker)
-		wn_args['classification'] = class_.status
-		if flags['magnitude']: wn_args['magnitude'] = class_.magnitude
-
-	return WebNode(**wn_args)
 
 def classify(pubdate, ticker, offset=10):
 	"""
@@ -362,5 +380,4 @@ def domain2name(domain):
 	}
 	if not (domain in names.keys()): return None
 	return names[domain.lower()]
-
 

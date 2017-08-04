@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, print_function
 """
 stocker.py
 Author: David Wallach
@@ -13,7 +14,7 @@ from collections import namedtuple
 from urlparse import urlparse
 import requests
 from datetime import datetime
-from bs4 import BeautifulSoup as BS
+from bs4 import BeautifulSoup 
 from tqdm import tqdm, trange
 from webparser import scrape, RequestHandler, homepages
 
@@ -58,7 +59,7 @@ class Stocker(object):
             if data['symbol'] == ticker:
                 return data['name']
 
-    def stock(self, gui=True, nodes=False, json=True, csv=True, depth=1, query=True, shuffle=True, flags={}):
+    def stock(self, gui=True, json=True, csv=True, depth=1, query=True, shuffle=True, flags={}):
         """main function for the class. Begins the worker to get the information based on the queries given"""
         if query: self.build_queries(depth=depth)
         if shuffle: random.shuffle(self.queries)
@@ -93,7 +94,7 @@ class Stocker(object):
                 if json:    self.write_json(urls, curr_q.ticker)
         print('\nDone.')
         if gui: t.close()
-        if nodes: return nodes
+        return nodes
         
     def get_urls(self, query, json):
         """searches the query in google and returns the resulting urls"""
@@ -101,7 +102,7 @@ class Stocker(object):
         req = self.requestHandler.get(url)
         if req == None: return None
 
-        soup = BS(req.content,'html.parser')
+        soup = BeautifulSoup(req.content,'html.parser')
         reg = re.compile('.*&sa=')
         new_urls = []
         for item in soup.find_all(attrs={'class' : 'g'}): new_urls.append(reg.match(item.a['href'][7:]).group()[:-4])
@@ -191,7 +192,7 @@ def SNP_500():
     url = 'http://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     req = RequestHandler().get(url)
     if req == None: return 
-    soup = BS(req.content, 'lxml')
+    soup = BeautifulSoup(req.content, 'lxml')
     table = soup.find('table', {'class': 'wikitable sortable'})
     tickers = []
     for row in table.findAll('tr'):
@@ -207,7 +208,7 @@ def NYSE_Top100():
     url = 'http://online.wsj.com/mdc/public/page/2_3021-activnyse-actives.html'
     req = RequestHandler().get(url)
     if req == None: return None
-    soup = BS(req.content, 'html.parser')
+    soup = BeautifulSoup(req.content, 'html.parser')
     if printer: sysprint('Finished loading NYSE100')
     return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
 
@@ -216,7 +217,7 @@ def NASDAQ_Top100():
     url = 'http://online.wsj.com/mdc/public/page/2_3021-activnnm-actives.html'
     req = RequestHandler().get(url)
     if req == None: return None
-    soup = BS(req.content, 'html.parser')
+    soup = BeautifulSoup(req.content, 'html.parser')
     if printer: sysprint('Finished loading NASDAQ100')
     return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
 
@@ -227,7 +228,7 @@ def googler(string):
     url = 'https://www.google.com/search?site=&source=hp&q={}&gws_rd=ssl'.format('+'.join(string))
     req = RequestHandler().get(url)
     if req == None: return []
-    soup = BS(req.content,'html.parser')  
+    soup = BeautifulSoup(req.content,'html.parser')  
     reg=re.compile('.*&sa=')
     urls = []
     for item in soup.find_all(attrs={'class' : 'g'}): urls.append(reg.match(item.a['href'][7:]).group()[:-4])

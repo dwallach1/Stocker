@@ -5,8 +5,7 @@ Author: David Wallach
 This function gathers all of the stock tickers and sources to call datamine.py to fill in the 
 data.csv file
 """
-import re, time, logging, logging.handlers, json
-import sys
+import logging, logging.handlers, json
 import requests
 from bs4 import BeautifulSoup
 from stocker import Stocker, SNP_500, NYSE_Top100, NASDAQ_Top100, valid_sources, querify
