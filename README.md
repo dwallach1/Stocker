@@ -15,7 +15,8 @@ sources = ['bloomberg', 'seekingalpha', 'reuters']  # and define own set of sour
 csv_path = '../data/examples.csv'				# path of where to write output (gathered information)
 json_path = '../data/links.json' 				# path of where to write output (for skipping duplicates)
 stocker = Stocker(tickers, sources, csv_path, json_path)	# initalize stocker
-stocker.stock()							# start the stocker
+flags = {'date_checker': True, 'classification': True, 'magnitude': True}
+stocker.stock(flags=flags)							# start the stocker
 ```
 
 Stocker creates queries on its own, based on the stock tickers and sources provided, however, you can define your own
@@ -111,13 +112,12 @@ associated stock price change (becasue the article was published before the past
 
 ```python
 class WebNode(object):
+	"""represents an entry in data.csv that will be used to train the sentiment classifier"""
 	def __init__(self, **kwargs):
-		"""represents an entry in data.csv that will be used to train the sentiment classifier"""
 		for key, value in kwargs.items():
       		setattr(self, key, value)
 
-wn = WebNode{'url': url, 'date':date, 'article':article}
-
+wn = WebNode(**{'url': url, 'date':date, 'article':article})
 wn_dict = dict(wn)
 ```
 

@@ -92,7 +92,7 @@ class Stocker(object):
             if not (node_dict is None):
                 if csv:     self.write_csv(node_dict)
                 if json:    self.write_json(urls, curr_q.ticker)
-        print('\nDone.')
+        print('\n\nDone.')
         if gui: t.close()
         return nodes
         
@@ -171,7 +171,6 @@ class Stocker(object):
         #write the updated json
         with open(self.json_path, 'w') as f: 
             json.dump(data, f, indent=4)
-
     
 # -----------------------
 #
@@ -180,14 +179,12 @@ class Stocker(object):
 # -----------------------
 
 def sysprint(text):
-    sys.stdout.write('\r{}\033[K'.format(text))
+    """moves cursor down one line -- prints over the current line -- then back up one line"""
+    sys.stdout.write('\033[1B\r{}\033[K\033[1A'.format(text))
     sys.stdout.flush()
 
-def moveup(lines):
-    for _ in range(lines):
-        sys.stdout.write("\x1b[A")
-
 def SNP_500():
+    """returns a list of the S&P500 stock tickers"""
     if printer: sysprint('Loading SNP500')
     url = 'http://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     req = RequestHandler().get(url)
@@ -204,6 +201,7 @@ def SNP_500():
     return tickers
 
 def NYSE_Top100():
+    """returns a list of the NYSE top 100 stock tickers"""
     if printer: sysprint('Loading NYSE100')
     url = 'http://online.wsj.com/mdc/public/page/2_3021-activnyse-actives.html'
     req = RequestHandler().get(url)
@@ -213,6 +211,7 @@ def NYSE_Top100():
     return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
 
 def NASDAQ_Top100():
+    """returns a list of the NASDAQ top 100 stock tickers"""
     if printer: sysprint('Loading NASDAQ100')
     url = 'http://online.wsj.com/mdc/public/page/2_3021-activnnm-actives.html'
     req = RequestHandler().get(url)
@@ -225,6 +224,7 @@ def valid_sources(): return ['bloomberg', 'seekingalpha', 'reuters', 'thestreet'
 def querify(ticker, source, string): return Query(ticker, source, '+'.join(string.split(' ')))
 
 def googler(string):
+    """returns a list of urls generated from a google search with the inputed string"""
     url = 'https://www.google.com/search?site=&source=hp&q={}&gws_rd=ssl'.format('+'.join(string))
     req = RequestHandler().get(url)
     if req == None: return []

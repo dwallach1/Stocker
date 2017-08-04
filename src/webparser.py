@@ -7,8 +7,6 @@ from datetime import datetime, timedelta
 from pytz import timezone
 import dateutil.parser as dateparser
 import numpy as np
-from nltk import sent_tokenize
-from nltk.tokenize import RegexpTokenizer
 from bs4 import BeautifulSoup 
 import dryscrape
 
@@ -28,7 +26,7 @@ class RequestHandler():
 				req = requests.get(url, headers=headers)
 			return req
 		except requests.exceptions.RequestException as e:
-			logger.error('Web Scraper Error: {}'.format(str(e)))
+			logger.error('RequestHandler GET Error: {}'.format(str(e)))
 			return None
 
 class WebNode(object):
@@ -65,12 +63,14 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
 	if not url_obj: return None
 	if not validate_url(url_obj, source, curious=flags['curious']): return None
 
-	# visit page and triggger JS -> capture html output as Soup object
-	session = dryscrape.Session()
-	session.visit(url)
-	response = session.body()
+
+	# ONLY if needed: visit page and triggger JS -> capture html output as Soup object
+	# session = dryscrape.Session()
+	# session.visit(url)
+	# response = session.body()
+	response = RequestHandler().get(url)
 	if response == None: return None
-	soup = BeautifulSoup(response, 'html.parser')
+	soup = BeautifulSoup(response.text, 'html.parser')
 	
 	# check url args
 	paths = url_obj.path.split('/')[1:] # first entry is '' so exclude it
@@ -88,12 +88,8 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
 	logger.info('found pubdate to be: {}'.format(str(pubdate)))
 	wn_args['article'] = article
 
-	# generate word and sentence lists
-	words = map(lambda word: clean(word, True), article.decode('utf-8').split(' '))
-	# words = article.decode('utf-8').split(u' ')
-	if flags['length_checker'] and len(words) < min_length: return None
-	if flags['words']: 		wn_args['words'] = words 
-	if flags['sentences']: 	wn_args['sentences'] = map(lambda sent: clean(sent, False), sent_tokenize(article.decode('utf-8')))
+	# check words
+	if flags['length_checker'] and len(article.decode('utf-8').split(' ')) < min_length: return None
 	
 	# handle indutry/sector parsing
 	if (flags['find_industry'] or flags['find_sector']) and ticker:
@@ -108,28 +104,6 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
 		if flags['magnitude']: wn_args['magnitude'] = class_.magnitude
 
 	return WebNode(**wn_args)
-
-def clean(input_, word):
-	'''
-	cleans the input thats either a sentece or a word
-	returns -> cleaned version of the input (string)
-	:param input_: either a word or sentece to clean
-	:type input_: string
-	:param word: set to True if input_ param is a word
-	:type word: bool 
-	'''
-	end_punct = [',', '.', '?', '!','--', '-']
-	if word:
-		if input_[-1] in end_punct:
-			input_ = input_[:-1]
-	chars = {
-		'\u2019': 	'\'',
-		'\xa0': 	' '
-	}
-	def replace_chars(match):
-		char = match.group(0)
-		return chars[char]
-	return re.sub('(' + '|'.join(chars.keys()) + ')', replace_chars, input_)
 
 def validate_url(url_obj, source, curious=False):
 	"""
