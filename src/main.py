@@ -8,7 +8,7 @@ data.csv file
 import logging, logging.handlers, json
 import requests
 from bs4 import BeautifulSoup
-from stocker import Stocker, SNP_500, NYSE_Top100, NASDAQ_Top100, valid_sources, querify
+from stocker import Stocker, SNP_500, NYSE_Top100, NASDAQ_Top100, valid_sources
 
 
 def gather_data():

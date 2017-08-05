@@ -87,7 +87,7 @@ a sentiment analysis classifier.
 * flags={} : a dictionary of kwargs to be used when parsing articles
 	
 
-	**kwargs recognized by Stocker**
+	**kwargs recognized by the Webparser**
 	* ticker=None : used to find information associated with the stock ticker
 	* min_length=30 : the minimum amount of words each article must have, only enforced if length_checker = True 
 	* curious=False : is set to true, stocker won't ensure that the link it is parsing is from the source field of the query
@@ -116,10 +116,7 @@ class WebNode(object):
 	def __init__(self, **kwargs):
 		for key, value in kwargs.items():
       		setattr(self, key, value)
-
-wn = WebNode(**{'url': url, 'date':date, 'article':article})
-wn_dict = dict(wn)
 ```
 
-I made it easy to convert a WebNode into a dictionary by defining an __iter__ method in the class. This allows Stocker to 
-easily write WebNodes to a csv file using a dictwriter. 
+The WebNode class takes a set of keyword arguments and these arguments will correlate to values of each csv column. 
+The valid args that the scraper will acknowledge are those mentioned before under the Funtion Parameters section. 

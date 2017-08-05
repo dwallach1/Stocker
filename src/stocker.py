@@ -1,13 +1,4 @@
 from __future__ import unicode_literals, print_function
-"""
-stocker.py
-Author: David Wallach
-
-This Python module has several purposes oriented around mining data from the web.
-The functionality is comprised of gathering urls from google queries, parsing the information, such as the article body 
-and publishing date, and then returning WebNodes with the found data. WebNodes are configured based on the parameters that 
-the main stocker function is called with. 
-"""
 import os, sys, logging, json, string
 import random, time, csv, re
 from collections import namedtuple
@@ -237,4 +228,9 @@ def googler(string):
 def earnings_watcher():
     """ returns a list of tickers of which their earning's reports are scheduled to release today (if weekday)"""
     url = 'https://www.bloomberg.com/markets/earnings-calendar/us'
-    pass
+    req = RequestHandler().get(url)
+    if req == None: return []
+    soup = BeautifulSoup(req.text, 'html.parser')
+    stocks = map(lambda stock: re.search(r'/.*:',stock['href']).group(0)[1:-1], soup.find_all('a', attrs={'class': 'data-table-row-cell__link'}))
+    return stocks
+    

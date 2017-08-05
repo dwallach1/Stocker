@@ -5,6 +5,7 @@ from collections import namedtuple
 from bs4 import BeautifulSoup 
 import requests
 from webparser import scrape
+from stocker import earnings_watcher
 
 Test = namedtuple('Test', 'func status') # status {0,1} where 0 is failed, 1 is passed
 Link = namedtuple('Link', 'url source')
@@ -65,100 +66,38 @@ def classify_test():
 def str2unix_test():
     pass
 
-def homepage_test():
-    failed, passed = Test('homepage_test', 0), Test('homepage_test', 1)
-    homepages = [Link('https://www.bloomberg.com/quote/APRN:US', 'bloomberg'), # bloomberg
-                 Link('https://seekingalpha.com/symbol/APRN', 'seekingalpha'),    # seekingalpha
-                 Link('http://www.investopedia.com/markets/stocks/aprn/news/', 'investopedia'), # investopedia
-                 Link('https://www.thestreet.com/quote/APRN.html', 'thestreet'), # thestreet
-                 Link('https://www.reuters.com/finance/stocks/overview?symbol=APRN.N', 'reuters') #reuters
-                 ]    
-    urls = {
-        'bloomberg': [  'https://www.bloomberg.com/news/articles/2017-08-02/the-magic-behind-many-unicorn-startups-complex-stock-contracts',
-                        'http://www.investopedia.com/news/5-companies-amazon-killing/?utm_campaign=quote-bloomberg&utm_source=bloomberg&utm_medium=referral&utm_term=fb-capture&utm_content=/#ec|rss-bloomberg',
-                        'https://www.bloomberg.com/news/articles/2017-07-25/blue-apron-shakes-up-executive-team-less-than-a-month-after-ipo',
-                        'http://www.investopedia.com/news/blue-apron-jumps-analysts-call-troubled-ipo-buy/?utm_campaign=quote-bloomberg&utm_source=bloomberg&utm_medium=referral&utm_term=fb-capture&utm_content=/#ec|rss-bloomberg',
-                        'https://www.thestreet.com/story/14239970/1/another-down-day-for-the-dow-as-ge-resumes-selloff-crude-trades-above-46.html?puc=bloomberg&cm_ven=BLOOMBERG',
-                        'https://www.thestreet.com/story/14239970/1/another-down-day-for-the-dow-as-ge-resumes-selloff-crude-trades-above-46.html?puc=bloomberg&cm_ven=BLOOMBERG',
-                        'https://www.bloomberg.com/news/articles/2017-07-24/blue-apron-soars-after-analysts-say-stock-is-a-bargain',
-                        'https://www.thestreet.com/story/14239970/1/another-down-day-for-the-dow-as-ge-resumes-selloff-crude-trades-above-46.html?puc=bloomberg&cm_ven=BLOOMBERG',
-                        'https://www.bloomberg.com/news/videos/2017-07-17/blue-apron-sinks-on-amazon-competition-video',
-                        'https://www.bloomberg.com/news/articles/2017-07-17/blue-apron-plummets-after-amazon-files-for-meal-kit-trademark',
-                        'https://www.bloomberg.com/news/articles/2017-07-11/snap-blue-apron-ipo-flops-show-fallout-of-lush-private-values',
-                        'https://www.bloomberg.com/news/videos/2017-06-30/blue-apron-falls-below-ipo-price-may-need-cash-video',
-                        'https://www.bloomberg.com/news/videos/2017-06-29/why-blue-apron-s-stock-fizzled-in-debut-video',
-                        'https://www.bloomberg.com/news/articles/2017-06-28/blue-apron-said-to-raise-300-million-after-slashing-ipo-price',
-                        'https://www.bloomberg.com/news/articles/2017-06-29/blue-apron-may-need-to-raise-more-money-soon-after-shrunken-ipo',
-                        'https://www.bloomberg.com/news/audio/2017-06-28/bloomberg-markets-blue-apron-slashes-ipo-price-34',
-                        'https://www.bloomberg.com/news/videos/2017-06-28/how-amazon-whole-foods-deal-could-impact-blue-apron-video',
-                        'https://www.bloomberg.com/news/articles/2017-06-28/blue-apron-aspires-to-amazon-com-like-valuation-in-u-s-ipo',
-                        'https://www.bloomberg.com/news/articles/2017-06-28/blue-apron-meal-kit-company-slashes-ipo-price-to-11-a-share',
-                        'https://www.bloomberg.com/news/videos/2017-06-20/food-delivery-heats-up-with-blue-apron-ipo-video',
-                        'https://www.bloomberg.com/press-releases/2017-07-26/glancy-prongay-murray-llp-commences-investigation-on-behalf-of-blue-apron-holdings-inc-investors',
-                        'https://www.bloomberg.com/press-releases/2017-07-26/scott-scott-attorneys-at-law-llp-announces-investigation-into-blue-apron-holdings-inc-aprn',
-                        'https://www.bloomberg.com/press-releases/2017-07-26/act-now-monteverde-associates-pc-announces-an-investigation-of-blue-apron-holdings-inc-aprn',
-                        'https://www.bloomberg.com/press-releases/2017-07-25/blue-apron-holdings-inc-announces-changes-to-executive-leadership-team',
-                        'https://www.bloomberg.com/press-releases/2017-07-24/blue-apron-holdings-investor-alert-faruqi-faruqi-llp-encourages-investors-who-suffered-losses-exceeding-100-000-investing',
-                        'https://www.bloomberg.com/press-releases/2017-07-24/lifshitz-miller-llp-announces-investigation-of-blue-apron-holdings-inc-irobot-corporation-monogram-residential-trust-inc',
-                        'https://www.bloomberg.com/press-releases/2017-07-19/shareholder-alert-bronstein-gewirtz-grossman-llc-announces-investigation-of-blue-apron-holdings-inc-aprn',
-                        'https://www.bloomberg.com/press-releases/2017-07-19/shareholder-alert-levi-korsinsky-llp-notifies-investors-of-an-investigation-involving-possible-securities-fraud-violations-j5b51ttv',
-                        'https://www.bloomberg.com/press-releases/2017-07-18/blue-apron-holdings-investor-alert-faruqi-faruqi-llp-encourages-investors-who-suffered-losses-exceeding-100-000-investing',
-                        'https://www.bloomberg.com/press-releases/2017-07-18/harwood-feffer-llp-announces-investigation-of-blue-apron-holdings-inc'
-                        ]
-
-    }
-
-    for link in homepages: 
-        sysprint ('Homepage test -- testing {}'.format(link.source))
-        result = scrape(link.url, link.source)
-        if not (isinstance(result, list)): return failed
-        if (len(result) != len(urls[link.source])): return failed
-        for l in urls[link.source]:
-            if not (l in result): return failed
-        sysprint( bcolors.GREEN + 'Home Page Test: Passed' + bcolors.ENDC)
-        return passed
-
+def earnings_watcher_test():
+    passed, failed = Test('earnings_watcher_test', 1), Test('earnings_watcher_test', 0)
+    stocks = earnings_watcher()
+    print (stocks)
     return passed
 
-def bloomberg_test():
-    pass
-    # sysprint ('testing bloomberg')
-    # article = 'ariasflfkdksmfsd'
-    # result = get_article()
-    # Assert (get_article(bloomberg_url) == article)
-    # Date = datetime(date)
-    # Assert (get_date(bloomberg_url == date)
-    # sysprint(bcolors.GREEN + 'Passed Bloomberg Page Test')
-    
-#[REPEAT FOR ALL TESTED DOMAINS]
-
-
-def decompose_article_test():
-    failed, passed = Test('decompose_article_test', 0), Test('decompose_article_test', 1)
-    # article = 'this is an article. This is a sentence! Can you parse it?\n Can you..?'
-    # words = ['this', 'is', 'an', 'article', 'This', 'is', 'a', 'sentence', 
-    #         'Can', 'you', 'parse', 'it', 'Can', 'you', 'parse', 'it', 'Can', 'you']
-    # sents = ['this is an article.', 'This is a sentence!', 'Can you parse it?', 'Can you..?']
-    url = 'https://www.bloomberg.com/news/articles/2017-07-25/blue-apron-shakes-up-executive-team-less-than-a-month-after-ipo'
-    link = Link(url, 'bloomberg')
-    wn = scrape(link.url, link.source, words=True, sentences=True)
-    print (wn.sentences)
-    return passed
 
 def main():
-    tests = [decompose_article_test()]
-    passed = sum(map(lambda test: test.status, tests))
-    total = len(tests)
-    sysprint ('passed {} out of {} test cases'.format(passed, total))
+    # tests = [str2unix_test(), classify_test(), valid_url_test()]
+    tests = [earnings_watcher_test()]
+    passed = 0
+    for test in tests:
+        passed += test.status
+        color = bcolors.GREEN if test.status == 1 else bcolors.FAIL
+        status = ' passed' if test.status == 1 else ' failed'
+        print (color + test.func + status + bcolors.ENDC)
+    # passed = sum(map(lambda test: test.status, tests))
+    # total = len(tests)
+    print ('\n------------------------------')
+    print ('passed {} out of {} test cases'.format(passed, len(tests)))
 
 if __name__ == "__main__":
     main()
-    
+ 
 
-# TESTS
+# ------------------------ 
+#
+#  DYNAMIC URL TESTS
+#
+# ------------------------    
 
 # print(classify(datetime.now() - timedelta(days= 5, hours=9), 'tsla'))
-
 
 # url = 'https://www.bloomberg.com/press-releases/2017-07-13/top-5-companies-in-the-global-consumer-electronics-and-telecom-products-market-by-bizvibe'
 # url = 'https://www.bloomberg.com/gadfly/articles/2017-04-27/under-armour-earnings-buckle-up'
