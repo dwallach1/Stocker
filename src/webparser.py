@@ -63,7 +63,6 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
 	if not url_obj: return None
 	if not validate_url(url_obj, source, curious=flags['curious']): return None
 
-
 	# ONLY if needed: visit page and triggger JS -> capture html output as Soup object
 	# session = dryscrape.Session()
 	# session.visit(url)
@@ -71,7 +70,8 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
 	response = RequestHandler().get(url)
 	if response == None: return None
 	soup = BeautifulSoup(response.text, 'html.parser')
-	
+	# soup = BeautifulSoup(response, 'html.parser')
+
 	# check url args
 	paths = url_obj.path.split('/')[1:] # first entry is '' so exclude it
 	p = paths[0].lower()
@@ -118,7 +118,6 @@ def validate_url(url_obj, source, curious=False):
 	"""
 	valid_schemes = ['http', 'https']
 	if not url_obj.hostname: return False
-	# domain_list = list(filter(lambda x: len(x) > 3, url_obj.hostname.split('.')))
 	domain_list = [x for x in url_obj.hostname.split('.') if len(x) > 3]
 	domain = ''
 	if len(domain_list) > 0: domain = domain_list[0].lower()
@@ -211,21 +210,22 @@ def crawl_home_page(soup, ID):
 	"""
 	if ID == 'quote':       # bloomberg / thestreet
 		urls = soup.find_all('a', attrs={'class': 'news-story__url'}, href=True)
-		if not (urls is None): return [url['href'] for url in urls]
-		urls = soup.find_all('div', attrs={'class': 'news-story__url'}, href=True) 
-		if not (urls is None): return [url['href'] for url in urls]
+		if not (urls == None): return [url['href'] for url in urls]
+		urls = soup.find_all('a', attrs={'class': 'news-list-compact__object-wrap'}, href=True) 
+		base = 'https://www.thestreet.com'
+		if not (urls == None): return [base + url['href'] for url in urls]
 	elif ID == 'symbol':  # seeking alpha
 		base = 'https://seekingalpha.com'
 		urls = soup.find_all('a', attrs={'sasource': 'qp_latest'}, href=True)
-		if not (urls is None): return [base + url['href'] for url in urls]
+		if not (urls == None): return [base + url['href'] for url in urls]
 	elif ID == 'finance':   # reuters
 		base = 'http://reuters.com'
 		urls = soup.find('div', attrs={'id': 'companyOverviewNews'})
-		if not (urls is None): return [base + url['href'] for url in urls.find_all('a')]
+		if not (urls == None): return [base + url['href'] for url in urls.find_all('a')]
 	elif ID == 'markets':   # investopedia
 		base = 'http://investopedia.com'
 		urls = soup.find('section', attrs={'id':'News'})
-		if not (urls is None): return [base + url['href'] for url in urls.find_all('a')]
+		if not (urls == None): return [base + url['href'] for url in urls.find_all('a')]
 	return None
 
 def classify(pubdate, ticker, offset=10):
@@ -257,7 +257,7 @@ def classify(pubdate, ticker, offset=10):
 
 	if len(split_source) < 8: return not_found
 
-	dates, highp, lowp = [], [], []
+	dates, highp, lowp, open_, close_ = [], [], [], [], []
 	curr_date = None
 	for line in stock_data[:-1]:
 		l = line.split(',')
@@ -269,6 +269,8 @@ def classify(pubdate, ticker, offset=10):
 			dates.append(curr_date + timedelta(minutes=int(date)))
 			highp.append(float(high))
 			lowp.append(float(low))
+			open_.append(float(openp))
+			close_.append(float(close))
 
 	bitmap =  [same_date(date, pubdate) for date in dates] # assume publishing date is in EST time
 	bitsum = sum(bitmap) 
@@ -278,15 +280,20 @@ def classify(pubdate, ticker, offset=10):
 	except:		return not_found
 	
 	now = datetime.now()
-	market_close = datetime(year=now.year, month=now.month, day=now.day, hour=16, minute=30)
+	market_close = datetime(year=now.year, month=now.month, day=now.day, hour=15, minute=58) # market closes at 4 -- last record at 3:58
 	diff = (market_close.minute - dates[idx].minute)
-	
+	# print ('highs be: {} at time & {} at time+offset'.format(highp[idx], highp[idx+offset]))
+	# print ('lows be: {} at time & {} at time+offset'.format(lowp[idx], lowp[idx+offset]))
+	# print ('open be: {} at time & {} at time+offset'.format(open_[idx], open_[idx+offset]))
+	# print ('close be: {} at time & {} at time+offset'.format(close_[idx], close_[idx+offset]))
+	# print ('dates to be: {} at time & {} at time+offset'.format(dates[idx], dates[idx+offset]))
+
 	if pre_mrkt_close((dates[idx] + timedelta(minutes=offset)), market_close): 
-		chng = highp[idx+offset] - highp[idx]
+		chng = close_[idx+offset] - close_[idx]
 		return PriceChange(np.sign(chng), abs(float(chng)))
-	elif diff > 0: 	
-		chng = highp[idx+diff] - highp[idx]
-		return PriceChange(np.sign(chng), abs(float(chng)))
+	# elif diff > 0: 	
+	# 	chng = close_[idx+diff] - close_[idx]
+	# 	return PriceChange(np.sign(chng), abs(float(chng)))
 	else: return not_found
 	
 def same_date(date1, date2):

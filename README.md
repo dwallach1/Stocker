@@ -36,7 +36,21 @@ stocker.queries = [querify(ticker, source, string) for string in query_strings]
 stocker.stock(query=False)
 ```
 This package also has built in functions for getting popular stocks as well as a list of the sources that Stocker has been 
-tested to work for.
+tested to work for. The current list of verified and tested sources are:
+
+* [Bloomberg](https://www.bloomberg.com)
+* [GoogleFinance](https://www.google.com/finance)
+* [Investing](https://www.investing.com)
+* [Investopedia](http://www.investopedia.com)
+* [MarketWatch](http://www.marketwatch.com)
+* [MotleyFool](http://motleyfool.com)
+* [MSN](http://www.msn.com/en-us/money)
+* [Reuters](http://www.reuters.com)
+* [SeekingAlpha](http://seekingalpha.com)
+* [TheStreet](https://www.thestreet.com)
+* [YahooFinance](https://finance.yahoo.com)
+
+
 
 ```python
 from stocker import SNP_500, NYSE_Top100, NASDAQ_Top100, valid_sources
@@ -109,14 +123,3 @@ the stock's price increased, the classification is +1, decreased: -1, and neutra
 stock prices, they only offer free data (at the minute interval) for the most recent 14 weekdays. For this reason, if there was no 
 associated stock price change (becasue the article was published before the past 14 weekdays, I assign the classification a value of 
 -1000 to indicate 'not found'.
-
-```python
-class WebNode(object):
-	"""represents an entry in data.csv that will be used to train the sentiment classifier"""
-	def __init__(self, **kwargs):
-		for key, value in kwargs.items():
-      		setattr(self, key, value)
-```
-
-The WebNode class takes a set of keyword arguments and these arguments will correlate to values of each csv column. 
-The valid args that the scraper will acknowledge are those mentioned before under the Funtion Parameters section. 

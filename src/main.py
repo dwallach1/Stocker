@@ -22,8 +22,8 @@ def gather_data():
     tickers = other_stocks
     sources = ['seekingalpha', 'bloomberg', 'reuters']
 
-    tickers = ['APRN']
-    sources = ['bloomberg']
+    # tickers = ['APRN']
+    # sources = ['bloomberg']
     csv_path = "../data/examples.csv"
     json_path = "../data/links.json"
     # flags = {'date_checker': True, 'classification': True, 'magnitude': True}

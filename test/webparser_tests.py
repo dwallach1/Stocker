@@ -2,22 +2,22 @@ from __future__ import unicode_literals, print_function
 import sys
 sys.path.append('/Users/david/Desktop/Stocker/src')
 from collections import namedtuple
+from datetime import datetime
+from urlparse import urlparse
 from bs4 import BeautifulSoup 
 import requests
-from webparser import scrape
+from webparser import scrape, validate_url, str2unix, get_sector_industry, classify
 from stocker import earnings_watcher
 
 Test = namedtuple('Test', 'func status') # status {0,1} where 0 is failed, 1 is passed
 Link = namedtuple('Link', 'url source')
+verbose = True
 
 class bcolors: 
     GREEN = '\033[92m'
     FAIL = '\033[91m' 
     ENDC = '\033[0m'
-
-def sysprint(text):
-    sys.stdout.write('\r{}\033[K'.format(text))
-    sys.stdout.flush()
+    BOLD = "\033[;1m"
 
 def soupify(url):
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -34,68 +34,123 @@ def soupify(url):
     return BeautifulSoup(req.content, 'html.parser')
 
 def valid_url_test():
-    # valid_urls = []
-    # invalid_urls = []
-    # for url in valid_urls:    
-    pass
+    passed, failed = Test('valid_url_test', 1), Test('valid_url_test', 0)
+    valid_urls = [      Link('https://www.bloomberg.com', 'bloomberg'), 
+                        Link('https://www.google.com/finance', 'google'), 
+                        Link('http://www.marketwatch.com', 'marketwatch')]
+    invalid_urls = [    Link('asd://www.bloomberg.com', 'bloomberg'), 
+                        Link('www.investing.com', 'investing'), 
+                        Link('htps://seekingalpha.com', 'seekingalpha')]
+    for link in valid_urls:
+        if not validate_url(urlparse(link.url), link.source): return failed
+    for link in invalid_urls:
+        if validate_url(urlparse(link.url), link.source): return failed
 
-def classify_test():
-    pass
-    # datetime(year, month, day[, hour[, minute[, second[, microsecond[,tzinfo]]]]])
-    # stock, date, offset = 'APRN', datetime(2017, 07, 12, 9, 33), 10  # HAVE CLASSIFY RETURN A MAGNITUDE ALSO (the size of difference)
-    # 7.105 --> 7.11
-    # change = classify(stock, date, offset)
-    # assert(classify(change.sign == 1.00 && change.magnitude(.005))
-    # stock, date, offset = 'NKE', datetime(), 13
-    # assert(classify(stock, date, offset) == 0.00)
-    # stock, date, offset = 'TSLA', datetime(), 20
-    # assert(classify(stock, date, offset) == -1.00)
+    curious = [     Link('https://www.bloomberg.com', 'seekingalpha'), 
+                    Link('https://www.google.com/finance', 'blah_blah'), 
+                    Link('http://www.marketwatch.com', 'questions')]
+    for link in curious:
+        if not validate_url(urlparse(link.url), link.source, curious=True): return failed
 
-    # # Test market close 
-    # stock, date, offset = 'APRN', datetime(), 10
-    # assert(classify(stock, date, offset) == 1.00)
-
-    # # test if pubdate was after market close / before
-    # stock, date, offset = 'APRN', datetime(), 10
-    # assert(classify(stock, date, offset) == 1.00)
-
-    # # test article published on weekend
-    # stock, date, offset = 'APRN', datetime(), 10
-    # assert(classify(stock, date, offset) == 1.00)
-
-def str2unix_test():
-    pass
-
-def earnings_watcher_test():
-    passed, failed = Test('earnings_watcher_test', 1), Test('earnings_watcher_test', 0)
-    stocks = earnings_watcher()
-    print (stocks)
     return passed
 
+def str2unix_test():
+    passed, failed = Test('str2unix_test', 1), Test('str2unix_test', 0)
+    Date = namedtuple('Date', 'string dtime')
+    # datetime(year, month, day[, hour[, minute[, second[, microsecond[,tzinfo]]]]])
+    dates = [   Date('1502062730', datetime(2017, 8, 6, 19, 38)),
+                Date('150206290', datetime(1974, 10, 5, 7, 58)),
+                Date('1502000000', datetime(2017, 8, 6, 2, 13)),
+                Date('1501000000', datetime(2017, 7, 25, 12, 26)),
+                Date('1510321300', datetime(2017, 11, 10, 8, 41))]
+    for date in dates:
+        d = str2unix(date.string)
+        dt = date.dtime
+        if (dt.year != d.year) or (dt.hour != d.hour) or (dt.minute != d.minute): return failed
+    return passed
+
+def get_sector_industry_test():
+    passed, failed = Test('get_sector_industry_test', 1), Test('get_sector_industry_test', 0)
+    Stock = namedtuple('Stock', 'ticker industry sector')
+    stocks = [  Stock('UA', 'Apparel & Accessories - NEC', 'Cyclical Consumer Goods & Services'),
+                Stock('AMZN', 'Internet & Mail Order Department Stores', 'Cyclical Consumer Goods & Services'),
+                Stock('APRN', 'Food Processing - NEC', 'Non-Cyclical Consumer Goods & Services'),
+                Stock('GE', 'Industrial Conglomerates', 'Industrials'),
+                Stock('BAC', 'Banks - NEC', 'Financials')]
+    for stock in stocks:
+        industry, sector = get_sector_industry(stock.ticker)
+        if industry != stock.industry or sector != stock.sector: return failed  
+    return passed
+
+def classify_test():
+    passed, failed = Test('classify_test', 1), Test('classify_test', 0)
+    # datetime(year, month, day[, hour[, minute[, second[, microsecond[,tzinfo]]]]])
+    Classifier = namedtuple('Classifier', 'ticker date status magnitude')
+    classifications = [ Classifier('amzn', datetime(2017, 8, 1, 12, 30), -1.0, 0.86),    # 999.87 | 999.01
+                        Classifier('AAPL', datetime(2017, 7, 31, 14, 18), 1.0, 0.651),   # 148.64 | 148.715
+                        Classifier('bac', datetime(2017, 8, 2, 10, 36), 1.0, 0.10),      # 24.34 | 24.44
+                        Classifier('ge', datetime(2017, 8, 1, 20, 30), -1000, 0),        # POST MARKET CLOSE
+                        Classifier('nke', datetime(2016, 8, 4, 15, 54), -1000, 0)]       # time + offset > market closes 
+    for c in classifications:
+        result = classify(c.date, c.ticker) 
+        print ('result is: {} | {} -- it should be {} | {}'.format(result.status, result.magnitude, c.status, c.magnitude))
+        if (result.status != c.status): 
+            if verbose: print ('classify_test: Wrong classification for stock: {} on date {} with offset {}'.format(c.ticker, c.date, 10))
+            return failed
+
+    # classifications = [ Classifier('amzn', datetime(2017, 8, 1, 12, 30), -1.0, 0.86),    # 999.87 | 999.01
+    #                     Classifier('AAPL', datetime(2017, 7, 31, 14, 18), 1.0, 0.651),   # 148.64 | 148.715
+    #                     Classifier('bac', datetime(2017, 8, 2, 10, 36), 1.0, 0.10),      # 24.34 | 24.44
+    #                     Classifier('ge', datetime(2017, 8, 1, 20, 30), -1000, 0),        # POST MARKET CLOSE
+    #                     Classifier('nke', datetime(2016, 8, 4, 15, 54), -1000, 0)]       # time + offset > market closes 
+   
+    # for c in classifications:
+    #     result = classify(c.date, c.ticker, offset=25) 
+    #     if (result.status != c.status) or (result.magnitude != c.magnitude): return failed
+
+    return passed
+    
 
 def main():
-    # tests = [str2unix_test(), classify_test(), valid_url_test()]
-    tests = [earnings_watcher_test()]
+    tests = [valid_url_test(), str2unix_test(), get_sector_industry_test(), classify_test()]
     passed = 0
     for test in tests:
         passed += test.status
         color = bcolors.GREEN if test.status == 1 else bcolors.FAIL
         status = ' passed' if test.status == 1 else ' failed'
-        print (color + test.func + status + bcolors.ENDC)
-    # passed = sum(map(lambda test: test.status, tests))
-    # total = len(tests)
-    print ('\n------------------------------')
+        print (bcolors.BOLD + test.func + ':' + color + status + bcolors.ENDC)
+    print ('------------------------------')
     print ('passed {} out of {} test cases'.format(passed, len(tests)))
 
 if __name__ == "__main__":
     main()
  
 
-# ------------------------ 
-#
-#  DYNAMIC URL TESTS
-#
-# ------------------------    
+"""
+DYNAMIC URL TESTS
+
+these tests have to be constantly updated because the content on the webpages is always changing hence the 'dynamic'
+nature. These tests are more so to ensure that the content being generated from the webparser is the correct format
+and looks generally as expected.
+"""
+
+def yahoo_test():
+    url = 'https://finance.yahoo.com/quote/APRN?p=APRN'
+    pass
+
+def earnings_watcher_test():
+    passed, failed = Test('earnings_watcher_test', 1), Test('earnings_watcher_test', 0)
+    stocks = earnings_watcher()
+    if not (isinstance(stocks, list)): return failed
+    return passed
+
+def dryscrape_test():
+    passed, failed = Test('dryscrape_test', 1), Test('dryscrape_test', 0)
+    # url = 'http://www.investopedia.com/markets/stocks/aprn/'
+    url = 'https://www.thestreet.com/quote/APRN.html'
+    urls = scrape(url, 'thestreet')
+    print (urls)
+    return passed
 
 # print(classify(datetime.now() - timedelta(days= 5, hours=9), 'tsla'))
 

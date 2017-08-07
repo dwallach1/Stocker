@@ -77,9 +77,8 @@ class Stocker(object):
 
             urls = self.get_urls(curr_q, json)
             nodes, urls = self.build_nodes(curr_q, urls, flags=flags)
-            node_dict = None
             if not(nodes == None): node_dict = [dict(node) for node in nodes]
-
+            if node_dict == None or len(node_dict) == 0: continue
             if not (node_dict is None):
                 if csv:     self.write_csv(node_dict)
                 if json:    self.write_json(urls, curr_q.ticker)
@@ -132,7 +131,7 @@ class Stocker(object):
         logger.debug('writing {} nodes to csv '.format(len(node_dict)))
         write_mode = 'a' if os.path.exists(self.csv_path) else 'w'
         with open(self.csv_path, write_mode) as f:
-            fieldnames = sorted(node_dict[0].keys()) # sort to ensure they are the same order every time
+            fieldnames = node_dict[0].keys() # sort to ensure they are the same order every time
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             if write_mode == 'w':
                 writer.writeheader()
