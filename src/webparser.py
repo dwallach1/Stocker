@@ -3,7 +3,7 @@ import re, logging, time
 from urlparse import urlparse
 from collections import namedtuple, defaultdict
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 from pytz import timezone
 import dateutil.parser as dateparser
 import numpy as np
@@ -28,6 +28,9 @@ class RequestHandler():
 		except requests.exceptions.RequestException as e:
 			logger.error('RequestHandler GET Error: {}'.format(str(e)))
 			return None
+
+class TZ(tzinfo):     
+	def utcoffset(self, dt, offset=240): return timedelta(minutes=offset)
 
 class WebNode(object):
 	"""represents an entry in data.csv that will be used to train the sentiment classifier"""
@@ -228,7 +231,7 @@ def crawl_home_page(soup, ID):
 		if not (urls == None): return [base + url['href'] for url in urls.find_all('a')]
 	return None
 
-def classify(pubdate, ticker, offset=10):
+def classify(pubdate, ticker, interval=20, offset=10):
 	"""
 	finds an associated classification based on the stock price fluctiation of the given ticker
 	returns -> StockChange  {-1000: not_found, -1.0: declined, 0.0: stayed the same, 1.0:increeased}
@@ -236,6 +239,8 @@ def classify(pubdate, ticker, offset=10):
 	:type pubdate: datetime object
 	:param ticker: the stock ticker to search the API for
 	:type ticker: string
+	:param offset: the amount of days to search for the date from the API
+	:type offset: int
 	:param offset: the interval to for stock price change (stockprice[pubdate+offset(minutes)] - stockprice[pubdate])
 	:type offset: int
 	"""
@@ -243,10 +248,10 @@ def classify(pubdate, ticker, offset=10):
 	
 	today = datetime.today()
 	today, pubdate = today.replace(tzinfo=None), pubdate.replace(tzinfo=None)
-	margin = timedelta(days = 20) 
+	margin = timedelta(days = interval) 
 	if ((today - margin) > pubdate): return not_found
 
-	url = 'https://www.google.com/finance/getprices?i=60&p=20d&f=d,o,h,l,c,v&df=cpct&q={}'.format(ticker.upper())
+	url = 'https://www.google.com/finance/getprices?i=60&p={}d&f=d,o,h,l,c,v&df=cpct&q={}'.format(interval, ticker.upper())
 	req = RequestHandler().get(url)
 	if req.content == None: return not_found
 
@@ -254,10 +259,9 @@ def classify(pubdate, ticker, offset=10):
 	split_source = source_code.split('\n')
 	headers = split_source[:7] 
 	stock_data = split_source[7:]
-
 	if len(split_source) < 8: return not_found
 
-	dates, highp, lowp, open_, close_ = [], [], [], [], []
+	dates, close_ = [], []
 	curr_date = None
 	for line in stock_data[:-1]:
 		l = line.split(',')
@@ -265,31 +269,23 @@ def classify(pubdate, ticker, offset=10):
 		if date[0] == 'a':
 			curr_date = str2unix(date[1:])
 			dates.append(curr_date)
+			close_.append(close)
 		else: 
 			dates.append(curr_date + timedelta(minutes=int(date)))
-			highp.append(float(high))
-			lowp.append(float(low))
-			open_.append(float(openp))
 			close_.append(float(close))
 
 	bitmap =  [same_date(date, pubdate) for date in dates] # assume publishing date is in EST time
 	bitsum = sum(bitmap) 
 	if bitsum == 0: bitsum = sum(same_date(timestamp, pubdate+timedelta(hours=3)) for timestamp in dates) # possibly date was in PDT time
 	if bitsum > 1: return not_found # this is an error case
-	try:		idx = bitmap.index(1) # at this point, we know there is a match
+	try:		idx = bitmap.index(1)
 	except:		return not_found
-	
+
 	now = datetime.now()
 	market_close = datetime(year=now.year, month=now.month, day=now.day, hour=15, minute=58) # market closes at 4 -- last record at 3:58
 	diff = (market_close.minute - dates[idx].minute)
-	# print ('highs be: {} at time & {} at time+offset'.format(highp[idx], highp[idx+offset]))
-	# print ('lows be: {} at time & {} at time+offset'.format(lowp[idx], lowp[idx+offset]))
-	# print ('open be: {} at time & {} at time+offset'.format(open_[idx], open_[idx+offset]))
-	# print ('close be: {} at time & {} at time+offset'.format(close_[idx], close_[idx+offset]))
-	# print ('dates to be: {} at time & {} at time+offset'.format(dates[idx], dates[idx+offset]))
-
 	if pre_mrkt_close((dates[idx] + timedelta(minutes=offset)), market_close): 
-		chng = close_[idx+offset] - close_[idx]
+		chng = float(close_[idx+offset] - close_[idx])
 		return PriceChange(np.sign(chng), abs(float(chng)))
 	# elif diff > 0: 	
 	# 	chng = close_[idx+diff] - close_[idx]
@@ -302,7 +298,7 @@ def same_date(date1, date2):
 	returns -> int in the set {0,1}
 	:param date(1/2): datetime | time object
 	"""
-	if (date1.month == date2.month) and (date1.day == date2.day) and (date1.hour == date2.hour) and (date1.minute == date2.minute): return 1
+	if (date1.year == date2.year) and (date1.month == date2.month) and (date1.day == date2.day) and (date1.hour == date2.hour) and (date1.minute == date2.minute): return 1
 	return 0
 
 def pre_mrkt_close(date, mrkt_close):
@@ -325,10 +321,9 @@ def str2unix(datestr):
 	:param datestr: raw representation of date from API
 	:type datestr: string
 	"""
-	date_UTC = datetime.fromtimestamp(int(datestr))	#	dates come in Unix time and converted to local 
-	date1, date2 = datetime.now(timezone('US/Eastern')), datetime.now()
-	rdelta = date1.hour - date2.hour 					#	convert local time to EST (the timezone the data was recorded in)
-	return date_UTC + timedelta(hours=rdelta)	
+	tz =timezone('US/Eastern')
+	date_UTC = datetime.fromtimestamp(int(datestr), tz)	 
+	return date_UTC 
 
 def name2domain(name):
 	"""
@@ -361,4 +356,7 @@ def domain2name(domain):
 	}
 	if not (domain in names.keys()): return None
 	return names[domain.lower()]
+
+
+
 

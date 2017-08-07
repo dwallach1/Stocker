@@ -1,17 +1,19 @@
 from __future__ import unicode_literals, print_function
 import sys
 sys.path.append('/Users/david/Desktop/Stocker/src')
+import argparse
 from collections import namedtuple
 from datetime import datetime
 from urlparse import urlparse
 from bs4 import BeautifulSoup 
 import requests
+from numpy.testing import assert_almost_equal
 from webparser import scrape, validate_url, str2unix, get_sector_industry, classify
 from stocker import earnings_watcher
 
 Test = namedtuple('Test', 'func status') # status {0,1} where 0 is failed, 1 is passed
 Link = namedtuple('Link', 'url source')
-verbose = True
+verbose = False
 
 class bcolors: 
     GREEN = '\033[92m'
@@ -42,15 +44,21 @@ def valid_url_test():
                         Link('www.investing.com', 'investing'), 
                         Link('htps://seekingalpha.com', 'seekingalpha')]
     for link in valid_urls:
-        if not validate_url(urlparse(link.url), link.source): return failed
+        if not validate_url(urlparse(link.url), link.source):
+            if verbose: print('valid_url_test: error for link: {}'.format(link.url))
+            return failed
     for link in invalid_urls:
-        if validate_url(urlparse(link.url), link.source): return failed
+        if validate_url(urlparse(link.url), link.source):
+            if verbose: print('valid_url_test: error for link: {}'.format(link.url))
+            return failed
 
     curious = [     Link('https://www.bloomberg.com', 'seekingalpha'), 
                     Link('https://www.google.com/finance', 'blah_blah'), 
                     Link('http://www.marketwatch.com', 'questions')]
     for link in curious:
-        if not validate_url(urlparse(link.url), link.source, curious=True): return failed
+        if not validate_url(urlparse(link.url), link.source, curious=True): 
+            if verbose: print('valid_url_test: error for link: {}'.format(link.url))
+            return failed
 
     return passed
 
@@ -62,11 +70,14 @@ def str2unix_test():
                 Date('150206290', datetime(1974, 10, 5, 7, 58)),
                 Date('1502000000', datetime(2017, 8, 6, 2, 13)),
                 Date('1501000000', datetime(2017, 7, 25, 12, 26)),
-                Date('1510321300', datetime(2017, 11, 10, 8, 41))]
+                Date('1510321300', datetime(2017, 11, 10, 8, 41)),
+                Date('1501853400', datetime(2017, 8, 4, 9, 30))]
     for date in dates:
         d = str2unix(date.string)
         dt = date.dtime
-        if (dt.year != d.year) or (dt.hour != d.hour) or (dt.minute != d.minute): return failed
+        if (dt.year != d.year) or (dt.hour != d.hour) or (dt.minute != d.minute):
+            if verbose: print('str2unix_test: error for date {}'.format(date.string))
+            return failed
     return passed
 
 def get_sector_industry_test():
@@ -79,40 +90,41 @@ def get_sector_industry_test():
                 Stock('BAC', 'Banks - NEC', 'Financials')]
     for stock in stocks:
         industry, sector = get_sector_industry(stock.ticker)
-        if industry != stock.industry or sector != stock.sector: return failed  
+        if industry != stock.industry or sector != stock.sector: 
+            if verbose: print('get_sector_industry_test: error for stock: {}'.format(stock.ticker))
+            return failed  
     return passed
 
 def classify_test():
     passed, failed = Test('classify_test', 1), Test('classify_test', 0)
-    # datetime(year, month, day[, hour[, minute[, second[, microsecond[,tzinfo]]]]])
-    Classifier = namedtuple('Classifier', 'ticker date status magnitude')
-    classifications = [ Classifier('amzn', datetime(2017, 8, 1, 12, 30), -1.0, 0.86),    # 999.87 | 999.01
-                        Classifier('AAPL', datetime(2017, 7, 31, 14, 18), 1.0, 0.651),   # 148.64 | 148.715
-                        Classifier('bac', datetime(2017, 8, 2, 10, 36), 1.0, 0.10),      # 24.34 | 24.44
-                        Classifier('ge', datetime(2017, 8, 1, 20, 30), -1000, 0),        # POST MARKET CLOSE
-                        Classifier('nke', datetime(2016, 8, 4, 15, 54), -1000, 0)]       # time + offset > market closes 
+    Classifier = namedtuple('Classifier', 'ticker date status magnitude offset')
+    classifications = [ Classifier('aapl',  datetime(2017, 8, 4, 9, 32), 1.0, 0.905, 10),       # 155.845 | 156.75
+                        Classifier('amzn',  datetime(2017, 7, 31, 14, 20), -1.0, 0.52, 10),     # 992.26 | 991.74
+                        Classifier('bac',   datetime(2017, 8, 2, 10, 36), -1.0, 0.026, 10),     # 24.34 | 24.28  -- 24.314
+                        Classifier('ge',    datetime(2017, 8, 2, 13, 22), -1.0, 0.009, 120),    # 25.515 | 25.506
+                        Classifier('tsla',  datetime(2017, 7, 31, 12, 12), -1.0, -2.457, 124),  # 326.147 | 323.69
+                        Classifier('tsla',  datetime(2017, 8, 6, 13, 22), -100, 0, 124),        # date on weekend   
+                        Classifier('nke',   datetime(2016, 8, 4, 15, 54), -1000, 0, 5)]         # time + offset > market close
     for c in classifications:
-        result = classify(c.date, c.ticker) 
-        print ('result is: {} | {} -- it should be {} | {}'.format(result.status, result.magnitude, c.status, c.magnitude))
-        if (result.status != c.status): 
-            if verbose: print ('classify_test: Wrong classification for stock: {} on date {} with offset {}'.format(c.ticker, c.date, 10))
-            return failed
-
-    # classifications = [ Classifier('amzn', datetime(2017, 8, 1, 12, 30), -1.0, 0.86),    # 999.87 | 999.01
-    #                     Classifier('AAPL', datetime(2017, 7, 31, 14, 18), 1.0, 0.651),   # 148.64 | 148.715
-    #                     Classifier('bac', datetime(2017, 8, 2, 10, 36), 1.0, 0.10),      # 24.34 | 24.44
-    #                     Classifier('ge', datetime(2017, 8, 1, 20, 30), -1000, 0),        # POST MARKET CLOSE
-    #                     Classifier('nke', datetime(2016, 8, 4, 15, 54), -1000, 0)]       # time + offset > market closes 
-   
-    # for c in classifications:
-    #     result = classify(c.date, c.ticker, offset=25) 
-    #     if (result.status != c.status) or (result.magnitude != c.magnitude): return failed
-
+        result = classify(c.date, c.ticker, offset=c.offset) 
+        if (result.status != c.status):
+            try: assert_almost_equal(result.magnitude,c.magnitude)
+            except:
+                if verbose: print ('classify_test: Wrong classification for stock: {} on date {} with offset {}'.format(c.ticker, c.date, c.offset))
+                return failed
     return passed
     
-
 def main():
-    tests = [valid_url_test(), str2unix_test(), get_sector_industry_test(), classify_test()]
+    parser = argparse.ArgumentParser(description='Test cases for Stocker program')
+    parser.add_argument('-v','--verbose', help='verbose printing for error cases', action='store_true', required=False)
+    args = vars(parser.parse_args())
+    if args['verbose']:
+        global verbose
+        verbose = True
+    tests = [   valid_url_test(), 
+                str2unix_test(), 
+                get_sector_industry_test(), 
+                classify_test()]
     passed = 0
     for test in tests:
         passed += test.status
@@ -122,8 +134,7 @@ def main():
     print ('------------------------------')
     print ('passed {} out of {} test cases'.format(passed, len(tests)))
 
-if __name__ == "__main__":
-    main()
+
  
 
 """
@@ -152,44 +163,6 @@ def dryscrape_test():
     print (urls)
     return passed
 
-# print(classify(datetime.now() - timedelta(days= 5, hours=9), 'tsla'))
+if __name__ == "__main__":
+    main()
 
-# url = 'https://www.bloomberg.com/press-releases/2017-07-13/top-5-companies-in-the-global-consumer-electronics-and-telecom-products-market-by-bizvibe'
-# url = 'https://www.bloomberg.com/gadfly/articles/2017-04-27/under-armour-earnings-buckle-up'
-# url = 'https://www.bloomberg.com/news/videos/2017-04-27/under-armour-regains-footing-amid-footwear-slump-video'
-# url = 'https://www.bloomberg.com/quote/UA:US'
-# url = 'https://www.bloomberg.com/news/articles/2017-04-27/under-armour-loses-whatever-swagger-it-had-left'
-# print (scrape(url, 'bloomberg', ticker='ua'))
-#
-
-
-# url = 'https://seekingalpha.com/article/4083816-kevin-plank-needs-resign-armour'
-# url = 'https://seekingalpha.com/filing/3582573'
-# url = 'https://seekingalpha.com/article/4077661-armour-millennial-play-pay'
-# url = 'https://seekingalpha.com/news/3276278-retail-sector-awaits-nike-earnings'
-# url = 'https://seekingalpha.com/article/4085681-armour-super-overvalued-shareholders-invested'
-# url = 'https://seekingalpha.com/symbol/UA'
-# print(scrape(url, 'seekingalpha'))
-
-
-
-# url = 'http://www.reuters.com/article/under-armour-results-idUSL4N1HZ4CJ'
-# url = 'http://www.reuters.com/article/us-britain-economy-investment-idUSKBN1A00TC'
-# url = 'http://www.reuters.com/article/us-under-armour-results-idUSKBN17T1LI'
-# url = 'http://www.reuters.com/finance/stocks/overview?symbol=UA.N'
-# print(scrape(url, 'reuters'))
-
-
-
-# url = 'http://www.investopedia.com/news/nike-declares-it-growth-company-nke/?lgl=rira-baseline-vertical'
-# url = 'http://www.investopedia.com/markets/stocks/nke/'
-# url = 
-# url = 
-# print(scrape(url, 'investopedia'))
-
-
-# url = 'https://www.thestreet.com/story/14042017/1/stop-wondering-what-is-going-on-with-under-armour.html'
-# url = 'https://www.thestreet.com/quote/UA.html'
-# url = 
-# url = 
-# print(scrape(url, 'thestreet'))
