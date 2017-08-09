@@ -29,9 +29,6 @@ class RequestHandler():
 			logger.error('RequestHandler GET Error: {}'.format(str(e)))
 			return None
 
-class TZ(tzinfo):     
-	def utcoffset(self, dt, offset=240): return timedelta(minutes=offset)
-
 class WebNode(object):
 	"""represents an entry in data.csv that will be used to train the sentiment classifier"""
 	def __init__(self, **kwargs):
@@ -78,7 +75,7 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
 	# check url args
 	paths = url_obj.path.split('/')[1:] # first entry is '' so exclude it
 	p = paths[0].lower()
-	if p in homepages(): return crawl_home_page(soup, p)
+	if p in homepages(): return crawl_home_page(soup, p, source)
    	
    	# search for publishing date
    	wn_args = {'url':url}
@@ -102,7 +99,7 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
 
 
 	if flags['classification'] and ticker:	
-		class_ = classify(pubdate, ticker)
+		class_ = classify(pubdate, ticker, offset=flags['offset'], squeeze=flags['squeeze'])
 		wn_args['classification'] = class_.status
 		if flags['magnitude']: wn_args['magnitude'] = class_.magnitude
 
@@ -121,10 +118,7 @@ def validate_url(url_obj, source, curious=False):
 	"""
 	valid_schemes = ['http', 'https']
 	if not url_obj.hostname: return False
-	domain_list = [x for x in url_obj.hostname.split('.') if len(x) > 3]
-	domain = ''
-	if len(domain_list) > 0: domain = domain_list[0].lower()
-	return (url_obj.scheme in valid_schemes) and ((domain == source.lower()) or curious)
+	return (url_obj.scheme in valid_schemes) and ((url_obj.hostname == name2host(source.lower())) or curious)
 
 def get_sector_industry(ticker):
 	"""
@@ -161,26 +155,27 @@ def find_date(soup, source, container):
 	:type container: string
 	"""
 	s, c = source.lower(), container.lower()
+	tz = timezone('US/Eastern')
 	try:
 		if s == 'bloomberg':
 			if c == 'press-releases':
 				date_html =  soup.find('span', attrs={'class': 'pubdate'})
-				if not (date_html is None): return dateparser.parse(date_html.text.strip(), fuzzy=True)
-			date_html = soup.find('time')
-			if not (date_html is None): return dateparser.parse(date_html.text.strip(), fuzzy=True)
+				if not (date_html == None): return dateparser.parse(date_html.text.strip(), fuzzy=True) 
+			date_html = soup.find('time', attrs={'itemprop': 'datePublished'})
+			if not (date_html == None): return dateparser.parse(date_html['datetime'], fuzzy=True).astimezone(tz)
 		elif s == 'seekingalpha':
 			if c == 'filing': return None
 			date_html = soup.find('time', attrs={'itemprop': 'datePublished'})
-			if not (date_html is None): return dateparser.parse(date_html['content'], fuzzy=True)
+			if not (date_html == None): return dateparser.parse(date_html['content'], fuzzy=True).astimezone(tz)
 		elif s == 'reuters':
 			date_html = soup.find('div', attrs={'class': 'ArticleHeader_date_V9eGk'})
-			if not (date_html is None): return dateparser.parse(''.join(date_html.text.strip().split('/')[:2]), fuzzy=True)
+			if not (date_html == None): return dateparser.parse(''.join(date_html.text.strip().split('/')[:2]), fuzzy=True)
 		elif s == 'investopedia':
 			date_html = soup.find('span', attrs={'class':'by-author'})
-			if not (date_html is None): return dateparser.parse(date_html.text.strip(), fuzzy=True)
+			if not (date_html == None): return dateparser.parse(date_html.text.strip(), fuzzy=True)
 		elif s == 'thestreet':
 			date_html = soup.find('time', attrs={'itemprop':'datePublished'})
-			if not (date_html is None): return dateparser.parse(date_html['datetime'], fuzzy=True)
+			if not (date_html == None): return dateparser.parse(date_html['datetime'], fuzzy=True)
 		
 		# TODO: module not specialized in source + need to account for errors
 		# try:
@@ -203,7 +198,7 @@ def find_article(soup, source, container):
 	if s == 'bloomberg': offset = 8
 	return ' '.join(list(map(lambda p: p.text.strip(), soup.find_all('p')[offset:]))).encode('utf-8')
 
-def crawl_home_page(soup, ID):
+def crawl_home_page(soup, ID, source):
 	"""
 	looks for links of a domain's ticker homepage
 	returns -> list on success, None on error
@@ -211,27 +206,32 @@ def crawl_home_page(soup, ID):
 	:param ID: the url path to indicate how to parse the soup object
 	:type ID: string
 	"""
-	if ID == 'quote':       # bloomberg / thestreet
-		urls = soup.find_all('a', attrs={'class': 'news-story__url'}, href=True)
-		if not (urls == None): return [url['href'] for url in urls]
-		urls = soup.find_all('a', attrs={'class': 'news-list-compact__object-wrap'}, href=True) 
-		base = 'https://www.thestreet.com'
-		if not (urls == None): return [base + url['href'] for url in urls]
-	elif ID == 'symbol':  # seeking alpha
-		base = 'https://seekingalpha.com'
-		urls = soup.find_all('a', attrs={'sasource': 'qp_latest'}, href=True)
-		if not (urls == None): return [base + url['href'] for url in urls]
-	elif ID == 'finance':   # reuters
-		base = 'http://reuters.com'
-		urls = soup.find('div', attrs={'id': 'companyOverviewNews'})
-		if not (urls == None): return [base + url['href'] for url in urls.find_all('a')]
-	elif ID == 'markets':   # investopedia
-		base = 'http://investopedia.com'
-		urls = soup.find('section', attrs={'id':'News'})
-		if not (urls == None): return [base + url['href'] for url in urls.find_all('a')]
-	return None
+	dryscrapes = ['yahoofinance', 'thestreet', 'investopedia']
+	# base = source in ['thestreet', 'seekingalpha', 'reuters', 'investopedia']
+	find = source in ['reuters', 'investopedia']
+	soups = {
+		'bloomberg': 	soup.find_all('a', attrs={'class': 'news-story__url'}, href=True),
+		'thestreet': 	soup.find_all('a', attrs={'class': 'news-list-compact__object-wrap'}, href=True), 
+		'seekingalpha':	soup.find_all('a', attrs={'sasource': 'qp_latest'}, href=True),
+		'reuters':		soup.find('div', attrs={'id': 'companyOverviewNews'}),
+		'investopedia': soup.find('section', attrs={'id':'News'})
+	}
 
-def classify(pubdate, ticker, interval=20, offset=10):
+	bases = {
+		'thestreet': 	'https://www.thestreet.com',
+		'seekingalpha':	'https://seekingalpha.com',
+		'reuters':		'http://reuters.com',
+		'investopedia': 'http://investopedia.com',
+		'bloomberg':	''
+	}
+
+	if find: return [bases[source] + url['href'] for url in soups[source].find_all('a')]
+	if not (source in soups.keys()): return None
+	return [bases[source] + url['href'] for url in soups[source]]
+	
+	# return soups[source]
+
+def classify(pubdate, ticker, interval=20, offset=10, squeeze=False):
 	"""
 	finds an associated classification based on the stock price fluctiation of the given ticker
 	returns -> StockChange  {-1000: not_found, -1.0: declined, 0.0: stayed the same, 1.0:increeased}
@@ -246,8 +246,7 @@ def classify(pubdate, ticker, interval=20, offset=10):
 	"""
 	not_found = PriceChange(-1000, 0)
 	
-	today = datetime.today()
-	today, pubdate = today.replace(tzinfo=None), pubdate.replace(tzinfo=None)
+	today, pubdate = datetime.today().replace(tzinfo=None), pubdate.replace(tzinfo=None)
 	margin = timedelta(days = interval) 
 	if ((today - margin) > pubdate): return not_found
 
@@ -265,7 +264,8 @@ def classify(pubdate, ticker, interval=20, offset=10):
 	curr_date = None
 	for line in stock_data[:-1]:
 		l = line.split(',')
-		date, close, high, low, openp, volume = l[0], l[1], l[2], l[3], l[4], l[5]
+		# date, close, high, low, openp, volume = l[0], l[1], l[2], l[3], l[4], l[5]
+		date, close = l[0], l[1]
 		if date[0] == 'a':
 			curr_date = str2unix(date[1:])
 			dates.append(curr_date)
@@ -277,7 +277,7 @@ def classify(pubdate, ticker, interval=20, offset=10):
 	bitmap =  [same_date(date, pubdate) for date in dates] # assume publishing date is in EST time
 	bitsum = sum(bitmap) 
 	if bitsum == 0: bitsum = sum(same_date(timestamp, pubdate+timedelta(hours=3)) for timestamp in dates) # possibly date was in PDT time
-	if bitsum > 1: return not_found # this is an error case
+	if bitsum > 1: return not_found  # this is an error case
 	try:		idx = bitmap.index(1)
 	except:		return not_found
 
@@ -287,7 +287,7 @@ def classify(pubdate, ticker, interval=20, offset=10):
 	if pre_mrkt_close((dates[idx] + timedelta(minutes=offset)), market_close): 
 		chng = float(close_[idx+offset] - close_[idx])
 		return PriceChange(np.sign(chng), abs(float(chng)))
-	# elif diff > 0: 	
+	# elif diff > 0 and squeeze: 	
 	# 	chng = close_[idx+diff] - close_[idx]
 	# 	return PriceChange(np.sign(chng), abs(float(chng)))
 	else: return not_found
@@ -321,22 +321,30 @@ def str2unix(datestr):
 	:param datestr: raw representation of date from API
 	:type datestr: string
 	"""
-	tz =timezone('US/Eastern')
+	tz = timezone('US/Eastern')
 	date_UTC = datetime.fromtimestamp(int(datestr), tz)	 
 	return date_UTC 
 
-def name2domain(name):
+def name2host(name):
 	"""
-	finds a correlating domain for a source input
+	finds a correlating hostname for a source input
 	returns -> string on success, None on error
-	:param name: the full source name
+	:param name: the full host name
 	:type name: string
 	"""
 	domains = {
-		'motley fool': 'fool',
-		'bloomberg': 'bloomberg',
-		'seeking alpha': 'seekingalpha',
-		'yahoo finance': 'finance.yahoo'
+		'motleyfool': 	'www.fool.com',
+		'bloomberg': 	'www.bloomberg.com',
+		'seekingalpha': 'seekingalpha.com',
+		'yahoofinance': 'finance.yahoo.com',
+		'msnmoney': 	'www.msn.com',
+		'investodpedia': 'www.investopedia.com',
+		'investing':	'www.investing.com',
+		'marketwatch': 	'www.marketwatch.com',
+		'googlefinance': 'www.google.com',
+		'reuters': 		'www.reuters.com',
+		'thestreet': 	'www.thestreet.com'
+
 	}
 	if not (name in domains.keys()): return None
 	return domains[name.lower()]

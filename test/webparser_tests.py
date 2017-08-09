@@ -7,6 +7,7 @@ from datetime import datetime
 from urlparse import urlparse
 from bs4 import BeautifulSoup 
 import requests
+from pytz import timezone
 from numpy.testing import assert_almost_equal
 from webparser import scrape, validate_url, str2unix, get_sector_industry, classify
 from stocker import earnings_watcher
@@ -14,6 +15,7 @@ from stocker import earnings_watcher
 Test = namedtuple('Test', 'func status') # status {0,1} where 0 is failed, 1 is passed
 Link = namedtuple('Link', 'url source')
 verbose = False
+EPSILON = 0.2
 
 class bcolors: 
     GREEN = '\033[92m'
@@ -35,11 +37,17 @@ def soupify(url):
 
     return BeautifulSoup(req.content, 'html.parser')
 
+def similar_dates(date1, date2): return date1.year == date2.year and date1.month == date2.month and date1.day == date2.day and date1.hour == date2.hour and date1.minute == date2.minute 
+
+def cosine_similarity(article1, article2):
+    pass
+
 def valid_url_test():
     passed, failed = Test('valid_url_test', 1), Test('valid_url_test', 0)
     valid_urls = [      Link('https://www.bloomberg.com', 'bloomberg'), 
-                        Link('https://www.google.com/finance', 'google'), 
+                        Link('https://www.google.com/finance', 'googlefinance'), 
                         Link('http://www.marketwatch.com', 'marketwatch')]
+    
     invalid_urls = [    Link('asd://www.bloomberg.com', 'bloomberg'), 
                         Link('www.investing.com', 'investing'), 
                         Link('htps://seekingalpha.com', 'seekingalpha')]
@@ -95,7 +103,7 @@ def get_sector_industry_test():
             return failed  
     return passed
 
-def classify_test():
+def classify_test():    # also a dynamic test in some cases -- until we link to paid database
     passed, failed = Test('classify_test', 1), Test('classify_test', 0)
     Classifier = namedtuple('Classifier', 'ticker date status magnitude offset')
     classifications = [ Classifier('aapl',  datetime(2017, 8, 4, 9, 32), 1.0, 0.905, 10),       # 155.845 | 156.75
@@ -113,29 +121,6 @@ def classify_test():
                 if verbose: print ('classify_test: Wrong classification for stock: {} on date {} with offset {}'.format(c.ticker, c.date, c.offset))
                 return failed
     return passed
-    
-def main():
-    parser = argparse.ArgumentParser(description='Test cases for Stocker program')
-    parser.add_argument('-v','--verbose', help='verbose printing for error cases', action='store_true', required=False)
-    args = vars(parser.parse_args())
-    if args['verbose']:
-        global verbose
-        verbose = True
-    tests = [   valid_url_test(), 
-                str2unix_test(), 
-                get_sector_industry_test(), 
-                classify_test()]
-    passed = 0
-    for test in tests:
-        passed += test.status
-        color = bcolors.GREEN if test.status == 1 else bcolors.FAIL
-        status = ' passed' if test.status == 1 else ' failed'
-        print (bcolors.BOLD + test.func + ':' + color + status + bcolors.ENDC)
-    print ('------------------------------')
-    print ('passed {} out of {} test cases'.format(passed, len(tests)))
-
-
- 
 
 """
 DYNAMIC URL TESTS
@@ -143,11 +128,49 @@ DYNAMIC URL TESTS
 these tests have to be constantly updated because the content on the webpages is always changing hence the 'dynamic'
 nature. These tests are more so to ensure that the content being generated from the webparser is the correct format
 and looks generally as expected.
+
+I use the cosine similarity to check if the webparser gets the correct article from the url because the parsing
+process is susceptible to noise such as headers, advertiesements, etc. By changing the EPSILON variable, you can
+determine how strict the tests are
 """
 
 def yahoo_test():
-    url = 'https://finance.yahoo.com/quote/APRN?p=APRN'
-    pass
+    passed, failed = Test('yahoo_test', 1), Test('yahoo_test', 0)
+    homeurl = 'https://finance.yahoo.com/quote/APRN?p=APRN'
+    url = 'https://finance.yahoo.com/news/blue-apron-aprn-investors-apos-174305777.html'
+    source = 'yahoofinance'
+    result = scrape(url, source)
+    if not isinstance(result.article, str): return failed
+    home_result = scrape(homeurl, source)
+    if not isinstance(home_result, list) and len(home_result) < 1: return failed
+    # for link in home_result: print(link)
+    return passed
+
+def bloomberg_test():
+    passed, failed = Test('bloomberg_test', 1), Test('bloomberg_test', 0)
+    homeurl = 'https://www.bloomberg.com/quote/APRN:US'
+    url = 'https://www.bloomberg.com/news/articles/2017-08-04/blue-apron-plans-to-cut-24-of-staff-barely-a-month-since-ipo'
+    source = 'bloomberg'
+    result = scrape(url, source)
+    if not isinstance(result.article, str): return failed
+    if not similar_dates(result.pubdate, datetime(2017, 8, 4, 11, 58, tzinfo=timezone('US/Eastern'))): return failed
+    home_result = scrape(homeurl, source)
+    if not isinstance(home_result, list) and len(home_result) < 1: return failed
+    # for link in home_result: print(link)
+    return passed
+
+def seekingalpha_test():
+    passed, failed = Test('seekingalpha_test', 1), Test('seekingalpha_test', 0)
+    homeurl = 'https://seekingalpha.com/symbol/GE'
+    url = 'https://seekingalpha.com/article/4093388-general-electric-breaking-drink-kool-aid'
+    source = 'seekingalpha'
+    result = scrape(url, source)
+    if not isinstance(result.article, str): return failed
+    if not similar_dates(result.pubdate, datetime(2017, 8, 2, 8, 1, 0, tzinfo=timezone('US/Eastern'))): return failed
+    home_result = scrape(homeurl, source)
+    if not isinstance(home_result, list) and len(home_result) < 1: return failed
+    # for link in home_result: print(link)
+    return passed
 
 def earnings_watcher_test():
     passed, failed = Test('earnings_watcher_test', 1), Test('earnings_watcher_test', 0)
@@ -162,6 +185,31 @@ def dryscrape_test():
     urls = scrape(url, 'thestreet')
     print (urls)
     return passed
+    
+def main():
+    parser = argparse.ArgumentParser(description='Test cases for Stocker program')
+    parser.add_argument('-v','--verbose', help='verbose printing for error cases', action='store_true', required=False)
+    args = vars(parser.parse_args())
+    if args['verbose']:
+        global verbose
+        verbose = True
+    tests = [   #valid_url_test(), 
+                #str2unix_test(), 
+                #get_sector_industry_test(), 
+                #classify_test(),
+                #yahoo_test(),
+                bloomberg_test(),
+                seekingalpha_test()
+            ]
+    passed = 0
+    for test in tests:
+        passed += test.status
+        color = bcolors.GREEN if test.status == 1 else bcolors.FAIL
+        status = ' passed' if test.status == 1 else ' failed'
+        print (bcolors.BOLD + test.func + ':' + color + status + bcolors.ENDC)
+    print ('------------------------------')
+    print ('passed {} out of {} test cases'.format(passed, len(tests)))
+
 
 if __name__ == "__main__":
     main()

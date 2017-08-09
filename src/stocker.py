@@ -10,7 +10,7 @@ from tqdm import tqdm, trange
 from webparser import scrape, RequestHandler, homepages
 
 logger = logging.getLogger(__name__)
-printer = True
+verbose = True
 Query = namedtuple('Query', 'ticker source string')
                     
 class Stocker(object):
@@ -28,7 +28,7 @@ class Stocker(object):
         i, j = 0, '.'
         for t in self.tickers:
             for s in self.sources:
-                if printer: sysprint('Building queries' + j*(i % 3))
+                if verbose: sysprint('Building queries' + j*(i % 3))
                 i += 1
                 string1 = t + '+' + s + '+' + 'stock+articles'
                 if depth > 1:
@@ -68,7 +68,7 @@ class Stocker(object):
         else: t = range(total) 
         for i in t:
             curr_q = self.queries[i]
-            if printer: sysprint('Processing query: {}'.format(curr_q.string))
+            if verbose: sysprint('Processing query: {}'.format(curr_q.string))
             logger.debug('Processing query: {}'.format(curr_q.string))
             if gui:
                 t.set_description(curr_q.ticker.upper())
@@ -114,20 +114,20 @@ class Stocker(object):
         nodes = []
         j = '.'
         for i, url in enumerate(urls):
-            if printer: sysprint('parsing urls for query: {}'.format(query.string) + j*(i % 3))
+            if verbose: sysprint('parsing urls for query: {}'.format(query.string) + j*(i % 3))
             node = scrape(url, query.source, ticker=query.ticker, **flags)
             if isinstance(node, list):
                 urls += [url for url in node if not(url in urls)]
                 logger.debug('Hit landing page -- crawling for more links')
             elif node != None: nodes.append(node)
             else: urls.remove(url)
-        if printer: sysprint ('built {} nodes to write to disk'.format(len(nodes)))
+        if verbose: sysprint ('built {} nodes to write to disk'.format(len(nodes)))
         logger.debug('built {} nodes to write to disk'.format(len(nodes)))
         return nodes, urls
 
     def write_csv(self, node_dict):
         """writes the data gathered to a csv file"""
-        if printer: sysprint('writing {} nodes to csv'.format(len(node_dict)))
+        if verbose: sysprint('writing {} nodes to csv'.format(len(node_dict)))
         logger.debug('writing {} nodes to csv '.format(len(node_dict)))
         write_mode = 'a' if os.path.exists(self.csv_path) else 'w'
         with open(self.csv_path, write_mode) as f:
@@ -139,7 +139,7 @@ class Stocker(object):
 
     def write_json(self, urls, ticker):
         """writes parsed links to JSON file to avoid reparsing"""
-        if printer: sysprint('writing {} links to csv'.format(len(urls)))
+        if verbose: sysprint('writing {} links to csv'.format(len(urls)))
         logger.debug('writing {} links to csv'.format(len(urls)))
         write_mode = 'r' if os.path.exists(self.json_path) else 'w' 
         t = ticker.upper()
@@ -175,7 +175,7 @@ def sysprint(text):
 
 def SNP_500():
     """returns a list of the S&P500 stock tickers"""
-    if printer: sysprint('Loading SNP500')
+    if verbose: sysprint('Loading SNP500')
     url = 'http://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     req = RequestHandler().get(url)
     if req == None: return 
@@ -187,27 +187,27 @@ def SNP_500():
         if len(col) > 0:
             ticker = str(col[0].string.strip())
             tickers.append(ticker)
-    if printer: sysprint('Finished loading SNP500')
+    if verbose: sysprint('Finished loading SNP500')
     return tickers
 
 def NYSE_Top100():
     """returns a list of the NYSE top 100 stock tickers"""
-    if printer: sysprint('Loading NYSE100')
+    if verbose: sysprint('Loading NYSE100')
     url = 'http://online.wsj.com/mdc/public/page/2_3021-activnyse-actives.html'
     req = RequestHandler().get(url)
     if req == None: return None
     soup = BeautifulSoup(req.content, 'html.parser')
-    if printer: sysprint('Finished loading NYSE100')
+    if verbose: sysprint('Finished loading NYSE100')
     return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
 
 def NASDAQ_Top100():
     """returns a list of the NASDAQ top 100 stock tickers"""
-    if printer: sysprint('Loading NASDAQ100')
+    if verbose: sysprint('Loading NASDAQ100')
     url = 'http://online.wsj.com/mdc/public/page/2_3021-activnnm-actives.html'
     req = RequestHandler().get(url)
     if req == None: return None
     soup = BeautifulSoup(req.content, 'html.parser')
-    if printer: sysprint('Finished loading NASDAQ100')
+    if verbose: sysprint('Finished loading NASDAQ100')
     return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
 
 def valid_sources(): return ['bloomberg', 'seekingalpha', 'reuters', 'thestreet', 'investopedia']
