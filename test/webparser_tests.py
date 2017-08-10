@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 import requests
 from pytz import timezone
 from numpy.testing import assert_almost_equal
-from webparser import scrape, validate_url, str2unix, get_sector_industry, classify
+from webparser import scrape, validate_url, str2date, get_sector_industry, classify
 from stocker import earnings_watcher
 
 Test = namedtuple('Test', 'func status') # status {0,1} where 0 is failed, 1 is passed
@@ -70,8 +70,8 @@ def valid_url_test():
 
     return passed
 
-def str2unix_test():
-    passed, failed = Test('str2unix_test', 1), Test('str2unix_test', 0)
+def str2date_test():
+    passed, failed = Test('str2date_test', 1), Test('str2date_test', 0)
     Date = namedtuple('Date', 'string dtime')
     # datetime(year, month, day[, hour[, minute[, second[, microsecond[,tzinfo]]]]])
     dates = [   Date('1502062730', datetime(2017, 8, 6, 19, 38)),
@@ -81,10 +81,10 @@ def str2unix_test():
                 Date('1510321300', datetime(2017, 11, 10, 8, 41)),
                 Date('1501853400', datetime(2017, 8, 4, 9, 30))]
     for date in dates:
-        d = str2unix(date.string)
+        d = str2date(date.string)
         dt = date.dtime
         if (dt.year != d.year) or (dt.hour != d.hour) or (dt.minute != d.minute):
-            if verbose: print('str2unix_test: error for date {}'.format(date.string))
+            if verbose: print('str2date_test: error for date {}'.format(date.string))
             return failed
     return passed
 
@@ -142,7 +142,8 @@ def yahoo_test():
     result = scrape(url, source)
     if not isinstance(result.article, str): return failed
     home_result = scrape(homeurl, source)
-    if not isinstance(home_result, list) and len(home_result) < 1: return failed
+    if not isinstance(home_result, list): return failed
+    if len(home_result) < 1: return failed
     # for link in home_result: print(link)
     return passed
 
@@ -150,12 +151,14 @@ def bloomberg_test():
     passed, failed = Test('bloomberg_test', 1), Test('bloomberg_test', 0)
     homeurl = 'https://www.bloomberg.com/quote/APRN:US'
     url = 'https://www.bloomberg.com/news/articles/2017-08-04/blue-apron-plans-to-cut-24-of-staff-barely-a-month-since-ipo'
+    url_pr = 'https://www.bloomberg.com/press-releases/2017-08-01/marathon-kids-run-all-50-states'
     source = 'bloomberg'
     result = scrape(url, source)
     if not isinstance(result.article, str): return failed
     if not similar_dates(result.pubdate, datetime(2017, 8, 4, 11, 58, tzinfo=timezone('US/Eastern'))): return failed
     home_result = scrape(homeurl, source)
-    if not isinstance(home_result, list) and len(home_result) < 1: return failed
+    if not isinstance(home_result, list): return failed
+    if len(home_result) < 1: return failed
     # for link in home_result: print(link)
     return passed
 
@@ -168,9 +171,27 @@ def seekingalpha_test():
     if not isinstance(result.article, str): return failed
     if not similar_dates(result.pubdate, datetime(2017, 8, 2, 8, 1, 0, tzinfo=timezone('US/Eastern'))): return failed
     home_result = scrape(homeurl, source)
-    if not isinstance(home_result, list) and len(home_result) < 1: return failed
+    if not isinstance(home_result, list): return failed
+    if len(home_result) < 1: return failed
     # for link in home_result: print(link)
     return passed
+
+def reuters_test():
+    passed, failed = Test('reuters_test', 1), Test('reuters_test', 0)
+    homeurl = 'https://www.reuters.com/finance/stocks/overview?symbol=NKE.N'
+    url = 'https://www.reuters.com/article/us-under-armour-strategy-analysis-idUSKBN1AK2H6'
+    source = 'reuters'
+    result = scrape(url, source)
+    if not isinstance(result.article, str): return failed
+    print (result.pubdate)
+    if not similar_dates(result.pubdate, datetime(2017, 8, 4, 18, 4, 0, tzinfo=timezone('US/Eastern'))): return failed
+    home_result = scrape(homeurl, source)
+    if not isinstance(home_result, list): return failed
+    if len(home_result) < 1: return failed
+    # for link in home_result: print(link)
+    return passed
+
+
 
 def earnings_watcher_test():
     passed, failed = Test('earnings_watcher_test', 1), Test('earnings_watcher_test', 0)
@@ -193,13 +214,15 @@ def main():
     if args['verbose']:
         global verbose
         verbose = True
-    tests = [   #valid_url_test(), 
-                #str2unix_test(), 
-                #get_sector_industry_test(), 
-                #classify_test(),
-                #yahoo_test(),
-                bloomberg_test(),
-                seekingalpha_test()
+    tests = [   
+                # valid_url_test(), 
+                # str2date_test(), 
+                # get_sector_industry_test(), 
+                # classify_test(),
+                # yahoo_test(),
+                # bloomberg_test(),
+                # seekingalpha_test(),
+                reuters_test()
             ]
     passed = 0
     for test in tests:

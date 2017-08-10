@@ -5,6 +5,7 @@ from collections import namedtuple, defaultdict
 import requests
 from datetime import datetime, timedelta, tzinfo
 from pytz import timezone
+import pytz
 import dateutil.parser as dateparser
 import numpy as np
 from bs4 import BeautifulSoup 
@@ -118,7 +119,7 @@ def validate_url(url_obj, source, curious=False):
 	"""
 	valid_schemes = ['http', 'https']
 	if not url_obj.hostname: return False
-	return (url_obj.scheme in valid_schemes) and ((url_obj.hostname == name2host(source.lower())) or curious)
+	return (url_obj.scheme in valid_schemes) and ((url_obj.hostname == source_translation(source.lower())) or curious)
 
 def get_sector_industry(ticker):
 	"""
@@ -156,32 +157,29 @@ def find_date(soup, source, container):
 	"""
 	s, c = source.lower(), container.lower()
 	tz = timezone('US/Eastern')
-	try:
-		if s == 'bloomberg':
-			if c == 'press-releases':
-				date_html =  soup.find('span', attrs={'class': 'pubdate'})
-				if not (date_html == None): return dateparser.parse(date_html.text.strip(), fuzzy=True) 
-			date_html = soup.find('time', attrs={'itemprop': 'datePublished'})
-			if not (date_html == None): return dateparser.parse(date_html['datetime'], fuzzy=True).astimezone(tz)
-		elif s == 'seekingalpha':
-			if c == 'filing': return None
-			date_html = soup.find('time', attrs={'itemprop': 'datePublished'})
-			if not (date_html == None): return dateparser.parse(date_html['content'], fuzzy=True).astimezone(tz)
-		elif s == 'reuters':
-			date_html = soup.find('div', attrs={'class': 'ArticleHeader_date_V9eGk'})
-			if not (date_html == None): return dateparser.parse(''.join(date_html.text.strip().split('/')[:2]), fuzzy=True)
-		elif s == 'investopedia':
-			date_html = soup.find('span', attrs={'class':'by-author'})
-			if not (date_html == None): return dateparser.parse(date_html.text.strip(), fuzzy=True)
-		elif s == 'thestreet':
-			date_html = soup.find('time', attrs={'itemprop':'datePublished'})
-			if not (date_html == None): return dateparser.parse(date_html['datetime'], fuzzy=True)
-		
-		# TODO: module not specialized in source + need to account for errors
-		# try:
-		# except:
-		return None
-	except: return None
+	tz_utc = pytz.utc
+
+	key = '+'.join([s,c])
+	container = {
+		'bloomberg+press-releases': soup.find('span', attrs={'class': 'pubdate'}),
+		'bloomberg+news':			soup.find('time', attrs={'itemprop': 'datePublished'}),
+		'seekingalpha+article':		soup.find('time', attrs={'itemprop': 'datePublished'}),
+		'reuters+article':			soup.find('div', attrs={'class': 'ArticleHeader_date_V9eGk'}),
+		'investopedia+news':		soup.find('span', attrs={'class':'by-author'}),
+		'thestreet+story':			soup.find('time', attrs={'itemprop':'datePublished'})
+	}
+
+	keys = container.keys()
+	if key not in keys: return None
+	date_html = container[key]
+	print (date_html)
+	if 	 key == 'bloomberg+press-releases': return dateparser.parse(date_html.text.strip(), fuzzy=True)
+	elif key == 'bloomberg+news':		 	return dateparser.parse(date_html['datetime'], fuzzy=True).astimezone(tz)
+	elif key ==	'seekingalpha+article':		return dateparser.parse(date_html['content'], fuzzy=True).astimezone(tz)
+	elif key ==	'reuters+article':			return tz_utc.localize(dateparser.parse(''.join(date_html.text.strip().split('/')[:2]), fuzzy=True)).astimezone(tz)
+	elif key ==	'investopedia+news':		return dateparser.parse(date_html.text.strip(), fuzzy=True)
+	elif key == 'thestreet+story':			return dateparser.parse(date_html['datetime'], fuzzy=True)
+	return None
 
 def find_article(soup, source, container):
 	"""
@@ -267,7 +265,7 @@ def classify(pubdate, ticker, interval=20, offset=10, squeeze=False):
 		# date, close, high, low, openp, volume = l[0], l[1], l[2], l[3], l[4], l[5]
 		date, close = l[0], l[1]
 		if date[0] == 'a':
-			curr_date = str2unix(date[1:])
+			curr_date = str2date(date[1:])
 			dates.append(curr_date)
 			close_.append(close)
 		else: 
@@ -283,13 +281,13 @@ def classify(pubdate, ticker, interval=20, offset=10, squeeze=False):
 
 	now = datetime.now()
 	market_close = datetime(year=now.year, month=now.month, day=now.day, hour=15, minute=58) # market closes at 4 -- last record at 3:58
-	diff = (market_close.minute - dates[idx].minute)
+	diff = (market_close - dates[idx].replace(tzinfo=None)).seconds / 60
 	if pre_mrkt_close((dates[idx] + timedelta(minutes=offset)), market_close): 
 		chng = float(close_[idx+offset] - close_[idx])
 		return PriceChange(np.sign(chng), abs(float(chng)))
-	# elif diff > 0 and squeeze: 	
-	# 	chng = close_[idx+diff] - close_[idx]
-	# 	return PriceChange(np.sign(chng), abs(float(chng)))
+	elif diff > 0 and squeeze: 	
+		chng = close_[idx+diff] - close_[idx]
+		return PriceChange(np.sign(chng), abs(float(chng)))
 	else: return not_found
 	
 def same_date(date1, date2):
@@ -314,25 +312,25 @@ def pre_mrkt_close(date, mrkt_close):
 	elif date.minute < mrkt_close.minute: return True
 	return False
 
-def str2unix(datestr):
+def str2date(datestr):
 	"""
 	converts a string date to a unix timestamp 
 	returns -> datetime object
 	:param datestr: raw representation of date from API
 	:type datestr: string
 	"""
-	tz = timezone('US/Eastern')
-	date_UTC = datetime.fromtimestamp(int(datestr), tz)	 
-	return date_UTC 
+	return datetime.fromtimestamp(int(datestr), timezone('US/Eastern'))	 
 
-def name2host(name):
+def source_translation(name, host=True):
 	"""
-	finds a correlating hostname for a source input
+	finds a correlating hostname or source for a name input
 	returns -> string on success, None on error
-	:param name: the full host name
+	:param name: the full host name or the source name
 	:type name: string
+	:param host: tells which dict to use 
+	:type host: boolean
 	"""
-	domains = {
+	hosts = {
 		'motleyfool': 	'www.fool.com',
 		'bloomberg': 	'www.bloomberg.com',
 		'seekingalpha': 'seekingalpha.com',
@@ -346,25 +344,9 @@ def name2host(name):
 		'thestreet': 	'www.thestreet.com'
 
 	}
-	if not (name in domains.keys()): return None
-	return domains[name.lower()]
-
-def domain2name(domain):
-	"""
-	finds a correlating (full) source name for a domain input
-	returns -> string on success, None on error
-	:param domain: the domain name
-	:type domain: string
-	"""
-	names = {
-		'fool': 'motley fool',
-		'bloomberg': 'bloomberg',
-		'seekingalpha': 'seeking alpha',
-		'finance.yahoo': 'yahoo finance'
-	}
-	if not (domain in names.keys()): return None
-	return names[domain.lower()]
-
-
-
+	sources = {v: k for k, v in hosts.iteritems()}
+	#inv_map = {v: k for k, v in my_map.items()} python 3+ --> use when we upgrade
+	bucket = hosts if host else sources 
+	if not (name in bucket.keys()): return None
+	return bucket[name.lower()]
 
