@@ -63,7 +63,7 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
 	url_obj = urlparse(url)
 	if not url_obj: return None
 	if not validate_url(url_obj, source, curious=flags['curious']): return None
-
+	
 	# ONLY if needed: visit page and triggger JS -> capture html output as Soup object
 	# session = dryscrape.Session()
 	# session.visit(url)
@@ -72,21 +72,21 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
 	if response == None: return None
 	soup = BeautifulSoup(response.text, 'html.parser')
 	# soup = BeautifulSoup(response, 'html.parser')
-
+	
 	# check url args
 	paths = url_obj.path.split('/')[1:] # first entry is '' so exclude it
 	p = paths[0].lower()
 	if p in homepages(): return crawl_home_page(soup, p, source)
-   	
+
    	# search for publishing date
    	wn_args = {'url':url}
 	pubdate = find_date(soup, source, paths[0])
 	if pubdate is None and flags['date_checker']: return None
 	wn_args['pubdate'] = pubdate
-
+	logger.info('found pubdate to be: {}'.format(str(pubdate)))
+	
 	# search for article
 	article = find_article(soup, source, paths[0])
-	logger.info('found pubdate to be: {}'.format(str(pubdate)))
 	wn_args['article'] = article
 
 	# check words
@@ -99,7 +99,7 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
 		if flags['find_sector']: 	wn_args['sector'] = sector
 
 
-	if flags['classification'] and ticker:	
+	if flags['classification'] and ticker and pubdate != None:	
 		class_ = classify(pubdate, ticker, offset=flags['offset'], squeeze=flags['squeeze'])
 		wn_args['classification'] = class_.status
 		if flags['magnitude']: wn_args['magnitude'] = class_.magnitude
@@ -161,7 +161,7 @@ def find_date(soup, source, container):
 
 	key = '+'.join([s,c])
 	container = {
-		'bloomberg+press-releases': soup.find('span', attrs={'class': 'pubdate'}),
+		'bloomberg+press-releases': soup.find('span', attrs={'class': 'date'}),
 		'bloomberg+news':			soup.find('time', attrs={'itemprop': 'datePublished'}),
 		'seekingalpha+article':		soup.find('time', attrs={'itemprop': 'datePublished'}),
 		'reuters+article':			soup.find('div', attrs={'class': 'ArticleHeader_date_V9eGk'}),
@@ -172,8 +172,8 @@ def find_date(soup, source, container):
 	keys = container.keys()
 	if key not in keys: return None
 	date_html = container[key]
-	print (date_html)
-	if 	 key == 'bloomberg+press-releases': return dateparser.parse(date_html.text.strip(), fuzzy=True)
+	if date_html == None: return None
+	if 	 key == 'bloomberg+press-releases': return dateparser.parse(date_html.text.strip(), fuzzy=True).astimezone(tz)
 	elif key == 'bloomberg+news':		 	return dateparser.parse(date_html['datetime'], fuzzy=True).astimezone(tz)
 	elif key ==	'seekingalpha+article':		return dateparser.parse(date_html['content'], fuzzy=True).astimezone(tz)
 	elif key ==	'reuters+article':			return tz_utc.localize(dateparser.parse(''.join(date_html.text.strip().split('/')[:2]), fuzzy=True)).astimezone(tz)
@@ -191,10 +191,13 @@ def find_article(soup, source, container):
 	:param container: an html attribute to where dates are stored for valid sources
 	:type container: string
 	"""
-	s, c = source.lower(), container.lower()
-	offset = 0 
-	if s == 'bloomberg': offset = 8
-	return ' '.join(list(map(lambda p: p.text.strip(), soup.find_all('p')[offset:]))).encode('utf-8')
+	s,c = source.lower(), container.lower()
+	key = '+'.join([s, c])
+	offset = defaultdict(lambda: 0)
+	offset['bloomberg+news'] = 8
+	tag = defaultdict(lambda: 'p')
+	tag['bloomberg+press-releases'] = 'pre'
+	return ' '.join(map(lambda p: p.text.strip(), soup.find_all(tag[key])[offset[key]:])).encode('utf-8')
 
 def crawl_home_page(soup, ID, source):
 	"""
@@ -207,6 +210,7 @@ def crawl_home_page(soup, ID, source):
 	dryscrapes = ['yahoofinance', 'thestreet', 'investopedia']
 	# base = source in ['thestreet', 'seekingalpha', 'reuters', 'investopedia']
 	find = source in ['reuters', 'investopedia']
+	dry = source in dryscrapes
 	soups = {
 		'bloomberg': 	soup.find_all('a', attrs={'class': 'news-story__url'}, href=True),
 		'thestreet': 	soup.find_all('a', attrs={'class': 'news-list-compact__object-wrap'}, href=True), 
@@ -223,8 +227,8 @@ def crawl_home_page(soup, ID, source):
 		'bloomberg':	''
 	}
 
-	if find: return [bases[source] + url['href'] for url in soups[source].find_all('a')]
-	if not (source in soups.keys()): return None
+	if find and not dry: return [bases[source] + url['href'] for url in soups[source].find_all('a')]
+	if not (source in soups.keys()) or dry: return None
 	return [bases[source] + url['href'] for url in soups[source]]
 	
 	# return soups[source]
@@ -336,7 +340,7 @@ def source_translation(name, host=True):
 		'seekingalpha': 'seekingalpha.com',
 		'yahoofinance': 'finance.yahoo.com',
 		'msnmoney': 	'www.msn.com',
-		'investodpedia': 'www.investopedia.com',
+		'investopedia': 'www.investopedia.com',
 		'investing':	'www.investing.com',
 		'marketwatch': 	'www.marketwatch.com',
 		'googlefinance': 'www.google.com',

@@ -46,7 +46,9 @@ def valid_url_test():
     passed, failed = Test('valid_url_test', 1), Test('valid_url_test', 0)
     valid_urls = [      Link('https://www.bloomberg.com', 'bloomberg'), 
                         Link('https://www.google.com/finance', 'googlefinance'), 
-                        Link('http://www.marketwatch.com', 'marketwatch')]
+                        Link('http://www.marketwatch.com', 'marketwatch'),
+                        Link('http://www.investopedia.com/news/food-distributors-outperform-despite-amazon/', 'investopedia'),
+                        Link('https://www.thestreet.com/story/14219936/1/gopro-shares-are-cheap-for-a-reason.html', 'thestreet')]
     
     invalid_urls = [    Link('asd://www.bloomberg.com', 'bloomberg'), 
                         Link('www.investing.com', 'investing'), 
@@ -156,6 +158,9 @@ def bloomberg_test():
     result = scrape(url, source)
     if not isinstance(result.article, str): return failed
     if not similar_dates(result.pubdate, datetime(2017, 8, 4, 11, 58, tzinfo=timezone('US/Eastern'))): return failed
+    result = scrape(url_pr, source)
+    if not isinstance(result.article, str): return failed
+    if not similar_dates(result.pubdate, datetime(2017, 8, 1, 13, 0, tzinfo=timezone('US/Eastern'))): return failed
     home_result = scrape(homeurl, source)
     if not isinstance(home_result, list): return failed
     if len(home_result) < 1: return failed
@@ -183,7 +188,6 @@ def reuters_test():
     source = 'reuters'
     result = scrape(url, source)
     if not isinstance(result.article, str): return failed
-    print (result.pubdate)
     if not similar_dates(result.pubdate, datetime(2017, 8, 4, 18, 4, 0, tzinfo=timezone('US/Eastern'))): return failed
     home_result = scrape(homeurl, source)
     if not isinstance(home_result, list): return failed
@@ -191,6 +195,36 @@ def reuters_test():
     # for link in home_result: print(link)
     return passed
 
+def investopedia_test():
+    passed, failed = Test('investopedia_test', 1), Test('investopedia_test', 0)
+    homeurl = 'http://www.investopedia.com/markets/stocks/amzn/'
+    url = 'http://www.investopedia.com/news/food-distributors-outperform-despite-amazon/'
+    source = 'investopedia'
+    result = scrape(url, source)
+    if not isinstance(result.article, str): return failed
+    if not similar_dates(result.pubdate, datetime(2017, 8, 9, 17, 9, 0, tzinfo=timezone('US/Eastern'))): return failed
+    home_result = scrape(homeurl, source)
+    if not isinstance(home_result, list): return failed
+    if len(home_result) < 1: return failed
+    # for link in home_result: print(link)
+    return passed
+
+def thestreet_test():
+    passed, failed = Test('thestreet_test', 1), Test('thestreet_test', 0)
+    homeurl = 'https://www.thestreet.com/quote/GPRO.html'
+    url = 'https://www.thestreet.com/story/14219936/1/gopro-shares-are-cheap-for-a-reason.html'
+    source = 'thestreet'
+    result = scrape(url, source)
+    if not isinstance(result.article, str): return failed
+    print('street pubdate: ' + str(result.pubdate))
+    print (result.article)
+    if not similar_dates(result.pubdate, datetime(2017, 8, 3, 16, 15, 0, tzinfo=timezone('US/Eastern'))): return failed
+    print ('passed thestreet datetest')
+    home_result = scrape(homeurl, source)
+    if not isinstance(home_result, list): return failed
+    if len(home_result) < 1: return failed
+    # for link in home_result: print(link)
+    return passed
 
 
 def earnings_watcher_test():
@@ -215,14 +249,16 @@ def main():
         global verbose
         verbose = True
     tests = [   
-                # valid_url_test(), 
-                # str2date_test(), 
-                # get_sector_industry_test(), 
-                # classify_test(),
-                # yahoo_test(),
-                # bloomberg_test(),
-                # seekingalpha_test(),
-                reuters_test()
+                valid_url_test(), 
+                str2date_test(), 
+                get_sector_industry_test(), 
+                classify_test(),
+                yahoo_test(),
+                bloomberg_test(),
+                seekingalpha_test(),
+                reuters_test(),
+                investopedia_test()
+                # thestreet_test()
             ]
     passed = 0
     for test in tests:
