@@ -1,12 +1,17 @@
-from __future__ import unicode_literals, print_function
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals, print_function, division
 import sys
 sys.path.append('/Users/david/Desktop/Stocker/src')
+import math
+import json
 import argparse
+import re
 from collections import namedtuple
 from datetime import datetime
 from urlparse import urlparse
 from bs4 import BeautifulSoup 
 import requests
+from nltk import word_tokenize
 from pytz import timezone
 from numpy.testing import assert_almost_equal
 from webparser import scrape, validate_url, str2date, get_sector_industry, classify
@@ -15,7 +20,7 @@ from stocker import earnings_watcher
 Test = namedtuple('Test', 'func status') # status {0,1} where 0 is failed, 1 is passed
 Link = namedtuple('Link', 'url source')
 verbose = False
-EPSILON = 0.2
+EPSILON = 0.80
 
 class bcolors: 
     GREEN = '\033[92m'
@@ -39,8 +44,35 @@ def soupify(url):
 
 def similar_dates(date1, date2): return date1.year == date2.year and date1.month == date2.month and date1.day == date2.day and date1.hour == date2.hour and date1.minute == date2.minute 
 
-def cosine_similarity(article1, article2):
-    pass
+def clean(text): 
+    replacements = {
+        '\u2019', '\'',
+        '\u2014', ' ',
+        '\u201d', ' ',
+        '\u201c', '“',
+        '\u201d', '”'
+    }
+    return text.decode('utf-8').replace(u'\u2019', '\'').replace('\r', ' ').replace('\n', ' ').split(' ')
+
+def jaccard_coeff(test_article, bucket):
+    """
+    returns a number between 0 and 1 defining the amount of words in both over the total amount of words
+    test_article, control_article = A, B
+    -- split aricles by words to compare -- doesn't consider term freq & rare terms carry more weight
+    jaccard(A, B) = | A intersect B | / | A union B |
+    jaccard(A, A) = 1
+    jaccard(A, B) = 0 if A intersect B = 0
+    Sets do not have to be the same size
+    """
+    with open('articles.json', 'r') as f:
+        data = json.load(f, encoding='utf-8', strict=False)
+    control_article = re.sub('\s+', ' ', data[bucket]).encode('utf-8').decode('utf-8').replace(u'\u2019', '\'').split(' ')
+    test_article = test_article.decode('utf-8').replace('\n', ' ').split(' ')
+
+    A, B = set(test_article), set(control_article)
+    jaccard = float(len(A.intersection(B)) / len(A.union(B)))
+    print ('jaccard coefficient is: {} for {}'.format(jaccard, bucket))
+    return jaccard > EPSILON
 
 def valid_url_test():
     passed, failed = Test('valid_url_test', 1), Test('valid_url_test', 0)
@@ -138,11 +170,16 @@ determine how strict the tests are
 
 def yahoo_test():
     passed, failed = Test('yahoo_test', 1), Test('yahoo_test', 0)
-    homeurl = 'https://finance.yahoo.com/quote/APRN?p=APRN'
-    url = 'https://finance.yahoo.com/news/blue-apron-aprn-investors-apos-174305777.html'
     source = 'yahoofinance'
+    
+    # normal url result test
+    url = 'https://finance.yahoo.com/news/blue-apron-aprn-investors-apos-174305777.html'
     result = scrape(url, source)
     if not isinstance(result.article, str): return failed
+    if not similar_dates(result.pubdate, datetime(2017, 7, 11, 13, 43, tzinfo=timezone('US/Eastern'))): return failed
+    if not jaccard_coeff(result.article, 'yahoofinance+news'): return failed
+    
+    homeurl = 'https://finance.yahoo.com/quote/APRN?p=APRN'
     home_result = scrape(homeurl, source)
     if not isinstance(home_result, list): return failed
     if len(home_result) < 1: return failed
@@ -151,16 +188,24 @@ def yahoo_test():
 
 def bloomberg_test():
     passed, failed = Test('bloomberg_test', 1), Test('bloomberg_test', 0)
-    homeurl = 'https://www.bloomberg.com/quote/APRN:US'
-    url = 'https://www.bloomberg.com/news/articles/2017-08-04/blue-apron-plans-to-cut-24-of-staff-barely-a-month-since-ipo'
-    url_pr = 'https://www.bloomberg.com/press-releases/2017-08-01/marathon-kids-run-all-50-states'
     source = 'bloomberg'
+    
+    # normal url result test
+    url = 'https://www.bloomberg.com/news/articles/2017-08-04/blue-apron-plans-to-cut-24-of-staff-barely-a-month-since-ipo'
     result = scrape(url, source)
     if not isinstance(result.article, str): return failed
     if not similar_dates(result.pubdate, datetime(2017, 8, 4, 11, 58, tzinfo=timezone('US/Eastern'))): return failed
-    result = scrape(url_pr, source)
-    if not isinstance(result.article, str): return failed
-    if not similar_dates(result.pubdate, datetime(2017, 8, 1, 13, 0, tzinfo=timezone('US/Eastern'))): return failed
+    if not jaccard_coeff(result.article, 'bloomberg+news'): return failed
+    
+    # press release result test
+    url_pr = 'https://www.bloomberg.com/press-releases/2017-08-01/marathon-kids-run-all-50-states'
+    pr_result = scrape(url_pr, source)
+    if not isinstance(pr_result.article, str): return failed
+    if not similar_dates(pr_result.pubdate, datetime(2017, 8, 1, 13, 0, tzinfo=timezone('US/Eastern'))): return failed
+    if not jaccard_coeff(pr_result.article, 'bloomberg+press-releases'): return failed
+    
+    # homepage result test
+    homeurl = 'https://www.bloomberg.com/quote/APRN:US'
     home_result = scrape(homeurl, source)
     if not isinstance(home_result, list): return failed
     if len(home_result) < 1: return failed
@@ -226,7 +271,6 @@ def thestreet_test():
     # for link in home_result: print(link)
     return passed
 
-
 def earnings_watcher_test():
     passed, failed = Test('earnings_watcher_test', 1), Test('earnings_watcher_test', 0)
     stocks = earnings_watcher()
@@ -249,15 +293,15 @@ def main():
         global verbose
         verbose = True
     tests = [   
-                valid_url_test(), 
-                str2date_test(), 
-                get_sector_industry_test(), 
-                classify_test(),
+                # valid_url_test(), 
+                # str2date_test(), 
+                # get_sector_industry_test(), 
+                # classify_test(),
                 yahoo_test(),
-                bloomberg_test(),
-                seekingalpha_test(),
-                reuters_test(),
-                investopedia_test()
+                bloomberg_test()
+                # seekingalpha_test(),
+                # reuters_test(),
+                # investopedia_test()
                 # thestreet_test()
             ]
     passed = 0

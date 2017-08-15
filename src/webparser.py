@@ -166,7 +166,8 @@ def find_date(soup, source, container):
 		'seekingalpha+article':		soup.find('time', attrs={'itemprop': 'datePublished'}),
 		'reuters+article':			soup.find('div', attrs={'class': 'ArticleHeader_date_V9eGk'}),
 		'investopedia+news':		soup.find('span', attrs={'class':'by-author'}),
-		'thestreet+story':			soup.find('time', attrs={'itemprop':'datePublished'})
+		'thestreet+story':			soup.find('time', attrs={'itemprop':'datePublished'}),
+		'yahoofinance+news': 		soup.find('time', attrs={'itemprop':'datePublished'})
 	}
 
 	keys = container.keys()
@@ -179,6 +180,7 @@ def find_date(soup, source, container):
 	elif key ==	'reuters+article':			return tz_utc.localize(dateparser.parse(''.join(date_html.text.strip().split('/')[:2]), fuzzy=True)).astimezone(tz)
 	elif key ==	'investopedia+news':		return dateparser.parse(date_html.text.strip(), fuzzy=True)
 	elif key == 'thestreet+story':			return dateparser.parse(date_html['datetime'], fuzzy=True)
+	elif key == 'yahoofinance+news':		return dateparser.parse(date_html['datetime'], fuzzy=True).astimezone(tz)
 	return None
 
 def find_article(soup, source, container):
