@@ -20,7 +20,7 @@ from stocker import earnings_watcher
 Test = namedtuple('Test', 'func status') # status {0,1} where 0 is failed, 1 is passed
 Link = namedtuple('Link', 'url source')
 verbose = False
-EPSILON = 0.80
+EPSILON = 0.20
 
 class bcolors: 
     GREEN = '\033[92m'
@@ -44,16 +44,6 @@ def soupify(url):
 
 def similar_dates(date1, date2): return date1.year == date2.year and date1.month == date2.month and date1.day == date2.day and date1.hour == date2.hour and date1.minute == date2.minute 
 
-def clean(text): 
-    replacements = {
-        '\u2019', '\'',
-        '\u2014', ' ',
-        '\u201d', ' ',
-        '\u201c', '“',
-        '\u201d', '”'
-    }
-    return text.decode('utf-8').replace(u'\u2019', '\'').replace('\r', ' ').replace('\n', ' ').split(' ')
-
 def jaccard_coeff(test_article, bucket):
     """
     returns a number between 0 and 1 defining the amount of words in both over the total amount of words
@@ -72,7 +62,7 @@ def jaccard_coeff(test_article, bucket):
     A, B = set(test_article), set(control_article)
     jaccard = float(len(A.intersection(B)) / len(A.union(B)))
     print ('jaccard coefficient is: {} for {}'.format(jaccard, bucket))
-    return jaccard > EPSILON
+    return jaccard > (1 - EPSILON)
 
 def valid_url_test():
     passed, failed = Test('valid_url_test', 1), Test('valid_url_test', 0)
@@ -80,7 +70,8 @@ def valid_url_test():
                         Link('https://www.google.com/finance', 'googlefinance'), 
                         Link('http://www.marketwatch.com', 'marketwatch'),
                         Link('http://www.investopedia.com/news/food-distributors-outperform-despite-amazon/', 'investopedia'),
-                        Link('https://www.thestreet.com/story/14219936/1/gopro-shares-are-cheap-for-a-reason.html', 'thestreet')]
+                        Link('https://www.thestreet.com/story/14219936/1/gopro-shares-are-cheap-for-a-reason.html', 'thestreet'),
+                        Link('https://www.msn.com/en-us/news/technology/paying-professors-inside-googles-academic-influence-campaign/ar-BBEfaQ3', 'msn')]
     
     invalid_urls = [    Link('asd://www.bloomberg.com', 'bloomberg'), 
                         Link('www.investing.com', 'investing'), 
@@ -168,6 +159,7 @@ process is susceptible to noise such as headers, advertiesements, etc. By changi
 determine how strict the tests are
 """
 
+# STATUS: homepage failing
 def yahoo_test():
     passed, failed = Test('yahoo_test', 1), Test('yahoo_test', 0)
     source = 'yahoofinance'
@@ -186,6 +178,7 @@ def yahoo_test():
     # for link in home_result: print(link)
     return passed
 
+# STATUS: fully passing
 def bloomberg_test():
     passed, failed = Test('bloomberg_test', 1), Test('bloomberg_test', 0)
     source = 'bloomberg'
@@ -212,78 +205,259 @@ def bloomberg_test():
     # for link in home_result: print(link)
     return passed
 
+# STATUS: fully passing
 def seekingalpha_test():
     passed, failed = Test('seekingalpha_test', 1), Test('seekingalpha_test', 0)
-    homeurl = 'https://seekingalpha.com/symbol/GE'
-    url = 'https://seekingalpha.com/article/4093388-general-electric-breaking-drink-kool-aid'
     source = 'seekingalpha'
+
+    # normal url result test
+    url = 'https://seekingalpha.com/article/4093388-general-electric-breaking-drink-kool-aid'
     result = scrape(url, source)
     if not isinstance(result.article, str): return failed
     if not similar_dates(result.pubdate, datetime(2017, 8, 2, 8, 1, 0, tzinfo=timezone('US/Eastern'))): return failed
+    if not jaccard_coeff(result.article, 'seekingalpha+article'): return failed
+    
+    # homepage result test
+    homeurl = 'https://seekingalpha.com/symbol/GE'
     home_result = scrape(homeurl, source)
     if not isinstance(home_result, list): return failed
     if len(home_result) < 1: return failed
     # for link in home_result: print(link)
     return passed
 
+# STATUS: fully passing
 def reuters_test():
     passed, failed = Test('reuters_test', 1), Test('reuters_test', 0)
-    homeurl = 'https://www.reuters.com/finance/stocks/overview?symbol=NKE.N'
-    url = 'https://www.reuters.com/article/us-under-armour-strategy-analysis-idUSKBN1AK2H6'
     source = 'reuters'
+
+    # normal url result test
+    url = 'https://www.reuters.com/article/us-under-armour-strategy-analysis-idUSKBN1AK2H6'
     result = scrape(url, source)
     if not isinstance(result.article, str): return failed
     if not similar_dates(result.pubdate, datetime(2017, 8, 4, 18, 4, 0, tzinfo=timezone('US/Eastern'))): return failed
+    if not jaccard_coeff(result.article, 'reuters+article'): return failed
+    
+    # homepage result test
+    homeurl = 'https://www.reuters.com/finance/stocks/overview?symbol=NKE.N'
     home_result = scrape(homeurl, source)
     if not isinstance(home_result, list): return failed
     if len(home_result) < 1: return failed
     # for link in home_result: print(link)
     return passed
 
+# STATUS: homepage failing
 def investopedia_test():
     passed, failed = Test('investopedia_test', 1), Test('investopedia_test', 0)
-    homeurl = 'http://www.investopedia.com/markets/stocks/amzn/'
-    url = 'http://www.investopedia.com/news/food-distributors-outperform-despite-amazon/'
     source = 'investopedia'
+
+    # normal url result test
+    url = 'http://www.investopedia.com/news/food-distributors-outperform-despite-amazon/'
     result = scrape(url, source)
     if not isinstance(result.article, str): return failed
     if not similar_dates(result.pubdate, datetime(2017, 8, 9, 17, 9, 0, tzinfo=timezone('US/Eastern'))): return failed
+    if not jaccard_coeff(result.article, 'investopedia+news'): return failed
+    
+    # homepage result test
+    homeurl = 'http://www.investopedia.com/markets/stocks/amzn/'
     home_result = scrape(homeurl, source)
     if not isinstance(home_result, list): return failed
     if len(home_result) < 1: return failed
     # for link in home_result: print(link)
     return passed
 
+# STATUS: homepage failing
 def thestreet_test():
     passed, failed = Test('thestreet_test', 1), Test('thestreet_test', 0)
-    homeurl = 'https://www.thestreet.com/quote/GPRO.html'
-    url = 'https://www.thestreet.com/story/14219936/1/gopro-shares-are-cheap-for-a-reason.html'
     source = 'thestreet'
+    
+    # normal url result test
+    url = 'https://www.thestreet.com/story/14219936/1/gopro-shares-are-cheap-for-a-reason.html' 
     result = scrape(url, source)
     if not isinstance(result.article, str): return failed
-    print('street pubdate: ' + str(result.pubdate))
-    print (result.article)
     if not similar_dates(result.pubdate, datetime(2017, 8, 3, 16, 15, 0, tzinfo=timezone('US/Eastern'))): return failed
-    print ('passed thestreet datetest')
+    if not jaccard_coeff(result.article, 'thestreet+story'): return failed
+    
+    # homepage result test
+    homeurl = 'https://www.thestreet.com/quote/GPRO.html'
     home_result = scrape(homeurl, source)
     if not isinstance(home_result, list): return failed
     if len(home_result) < 1: return failed
     # for link in home_result: print(link)
     return passed
 
-def earnings_watcher_test():
-    passed, failed = Test('earnings_watcher_test', 1), Test('earnings_watcher_test', 0)
-    stocks = earnings_watcher()
-    if not (isinstance(stocks, list)): return failed
+# STATUS: fully passing
+def marketwatch_test():
+    passed, failed = Test('marketwatch_test', 1), Test('marketwatch_test', 0)
+    source = 'marketwatch'
+    
+    # normal url result test
+    url = 'http://www.marketwatch.com/story/verizon-earnings-can-you-hear-me-now-verizons-search-for-success-outside-wireless-2017-07-25'
+    result = scrape(url, source)
+    if not isinstance(result.article, str): return failed
+    if not similar_dates(result.pubdate, datetime(2017, 7, 26, 6, 57, tzinfo=timezone('US/Eastern'))): return failed
+    if not jaccard_coeff(result.article, 'marketwatch+story'): return failed
+    
+    homeurl = 'http://www.marketwatch.com/investing/stock/vz'
+    home_result = scrape(homeurl, source)
+    if not isinstance(home_result, list): return failed
+    if len(home_result) < 1: return failed
+    # for link in home_result: print(link)
     return passed
 
-def dryscrape_test():
-    passed, failed = Test('dryscrape_test', 1), Test('dryscrape_test', 0)
-    # url = 'http://www.investopedia.com/markets/stocks/aprn/'
-    url = 'https://www.thestreet.com/quote/APRN.html'
-    urls = scrape(url, 'thestreet')
-    print (urls)
+# STATUS: site was down
+def motelyfool_test():
+    passed, failed = Test('motelyfool_test', 1), Test('motelyfool_test', 0)
+    source = 'motelyfool'
+    
+    # normal url result test
+    # url = ''
+    # result = scrape(url, source)
+    # if not isinstance(result.article, str): return failed
+    # if not similar_dates(result.pubdate, datetime(2017, , , , , tzinfo=timezone('US/Eastern'))): return failed
+    # if not jaccard_coeff(result.article, ''): return failed
+    
+    homeurl = ''
+    home_result = scrape(homeurl, source)
+    if not isinstance(home_result, list): return failed
+    if len(home_result) < 1: return failed
+    # for link in home_result: print(link)
     return passed
+
+# STATUS: fully passing
+def msn_test():
+    passed, failed = Test('msn_test', 1), Test('msn_test', 0)
+    source = 'msn'
+    
+    # normal url result test
+    url = 'https://www.msn.com/en-us/news/technology/paying-professors-inside-googles-academic-influence-campaign/ar-BBEfaQ3'
+    result = scrape(url, source)
+    if not isinstance(result.article, str): return failed
+    if not similar_dates(result.pubdate, datetime(2017, 7, 15, 10, 01, tzinfo=timezone('US/Eastern'))): return failed
+    if not jaccard_coeff(result.article, 'msn+en-us+news'): return failed
+    
+    homeurl = 'https://www.msn.com/en-us/money/stockdetails/fi-126.1.GOOG.NAS'
+    home_result = scrape(homeurl, source)
+    if not isinstance(home_result, list): return failed
+    if len(home_result) < 1: return failed
+    # for link in home_result: print(link)
+    return passed
+
+# STATUS: need subscription
+def wsj_test():
+    passed, failed = Test('wsj_test', 1), Test('wsj_test', 0)
+    source = 'wsj'
+    
+    # normal url result test
+    url = 'https://www.wsj.com/articles/BT-CO-20170811-709167'
+    result = scrape(url, source)
+    if not isinstance(result.article, str): return failed
+    if not similar_dates(result.pubdate, datetime(2017, 8, 11, 4, 49, tzinfo=timezone('US/Eastern'))): return failed
+    if not jaccard_coeff(result.article, ''): return failed
+    
+    # url = 'https://blogs.wsj.com/moneybeat/2017/08/11/daniel-loebs-third-point-exits-snap-returns-to-alibaba/'
+    # result = scrape(url, source)
+    # if not isinstance(result.article, str): return failed
+    # if not similar_dates(result.pubdate, datetime(2017, , , , , tzinfo=timezone('US/Eastern'))): return failed
+    # if not jaccard_coeff(result.article, ''): return failed
+
+    homeurl = 'http://quotes.wsj.com/SNAP'
+    home_result = scrape(homeurl, source)
+    if not isinstance(home_result, list): return failed
+    if len(home_result) < 1: return failed
+    # for link in home_result: print(link)
+    return passed
+
+# STATUS: need subscription
+def barrons_test():
+    passed, failed = Test('barrons_test', 1), Test('barrons_test', 0)
+    source = 'barrons'
+    
+    # normal url result test
+    url = 'http://www.barrons.com/articles/facebook-can-climb-more-than-20-1471670309'
+    result = scrape(url, source)
+    if not isinstance(result.article, str): return failed
+    if not similar_dates(result.pubdate, datetime(2016, 8, 20, 0, 1, tzinfo=timezone('US/Eastern'))): return failed
+    print (result.article)
+    if not jaccard_coeff(result.article, 'barrons+articles'): return failed
+    
+    homeurl = 'http://www.barrons.com/quote/stock/us/xnas/fb'
+    home_result = scrape(homeurl, source)
+    if not isinstance(home_result, list): return failed
+    if len(home_result) < 1: return failed
+    for link in home_result: print(link)
+    return passed
+
+# STATUS: does not keep minute publshing data
+def zacks_test():
+    passed, failed = Test('zacks_test', 1), Test('zacks_test', 0)
+    source = 'zacks'
+    
+    # normal url result test
+    # url = 'https://www.zacks.com/stock/news/264792/should-you-buy-facebook-fb-stock'
+    # result = scrape(url, source)
+    # if not isinstance(result.article, str): return failed
+    # if not similar_dates(result.pubdate, datetime(2017, , , , , tzinfo=timezone('US/Eastern'))): return failed
+    # if not jaccard_coeff(result.article, ''): return failed
+    
+    homeurl = ''
+    home_result = scrape(homeurl, source)
+    if not isinstance(home_result, list): return failed
+    if len(home_result) < 1: return failed
+    # for link in home_result: print(link)
+    return passed
+
+# STATUS: close to passing (no homepage for this source)
+def investorplace_test():
+    passed, failed = Test('investorplace_test', 1), Test('investorplace_test', 0)
+    source = 'investorplace'
+    
+    # normal url result test
+    url = 'http://investorplace.com/2017/07/ok-isnt-good-enough-under-armour-inc-uaa-stock/#.WZPQjMbMwy4'
+    result = scrape(url, source)
+    if not isinstance(result.article, str): return failed
+    if not similar_dates(result.pubdate, datetime(2017, 7, 5, 10, 0, tzinfo=timezone('US/Eastern'))): return failed
+    print(result.article)
+    if not jaccard_coeff(result.article, 'investorplace'): return failed
+    return passed
+
+# STATUS: 
+def benzinga_test():
+    passed, failed = Test('benzinga_test', 1), Test('benzinga_test', 0)
+    source = 'benzinga'
+    
+    # normal url result test
+    url = 'https://www.benzinga.com/general/education/17/08/9903307/an-easy-to-use-cheat-sheet-for-apple-suppliers'
+    result = scrape(url, source)
+    if not isinstance(result.article, str): return failed
+    if not similar_dates(result.pubdate, datetime(2017, 8, 10, 8, 42, tzinfo=timezone('US/Eastern'))): return failed
+    if not jaccard_coeff(result.article, ''): return failed
+    
+    homeurl = 'https://www.benzinga.com/stock/qcom'
+    home_result = scrape(homeurl, source)
+    if not isinstance(home_result, list): return failed
+    if len(home_result) < 1: return failed
+    for link in home_result: print(link)
+    return passed
+
+# # STATUS: 
+# def businessinsider_test():
+#     passed, failed = Test('businessinsider_test', 1), Test('businessinsider_test', 0)
+#     source = 'businessinsider'
+    
+#     # normal url result test
+#     url = ''
+#     result = scrape(url, source)
+#     if not isinstance(result.article, str): return failed
+#     if not similar_dates(result.pubdate, datetime(2017, , , , , tzinfo=timezone('US/Eastern'))): return failed
+#     if not jaccard_coeff(result.article, ''): return failed
+    
+#     homeurl = ''
+#     home_result = scrape(homeurl, source)
+#     if not isinstance(home_result, list): return failed
+#     if len(home_result) < 1: return failed
+#     # for link in home_result: print(link)
+#     return passed
+
     
 def main():
     parser = argparse.ArgumentParser(description='Test cases for Stocker program')
@@ -293,16 +467,28 @@ def main():
         global verbose
         verbose = True
     tests = [   
-                # valid_url_test(), 
+                # valid_url_test(),
                 # str2date_test(), 
                 # get_sector_industry_test(), 
                 # classify_test(),
-                yahoo_test(),
-                bloomberg_test()
+    
+    # # ---------DYNAMIC URL TESTS------------ # #
+    
+                # yahoo_test(),
+                # bloomberg_test(),
                 # seekingalpha_test(),
                 # reuters_test(),
-                # investopedia_test()
-                # thestreet_test()
+                # investopedia_test(),
+                # thestreet_test(),
+                # marketwatch_test(),
+                # ##motelyfool_test(),
+                # ## wsj_test(),
+                # ## barrons_test(),
+                # ##zacks_test(),
+                # msn_test(),
+                investorplace_test()
+                # benzinga_test(),
+                # businessinsider_test()
             ]
     passed = 0
     for test in tests:

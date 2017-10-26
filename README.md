@@ -6,6 +6,10 @@ If you do not want one of these (or either), you can call stocker with the flags
 parameters out when initalizing a Stocker instance. 
 
 
+"Tesla's stock jumped 2.5% after Tencent said it amassed a 5% stake in the electric car maker.
+Ocwen jumped 12% premarket after disclosing it reached a deal with New York regulators that will end third-party monitoring of its business within the next three weeks. In addition, restrictions on buying mortgage-servicing rights may get eased.
+Cara Therapeutics's shares surged 16% premarket, after the biotech company reported positive results in a trial of a treatment for uremic pruritus."
+
 
 ```python
 from stocker import Stocker
@@ -38,10 +42,14 @@ stocker.stock(query=False)
 This package also has built in functions for getting popular stocks as well as a list of the sources that Stocker has been 
 tested to work for. The current list of verified and tested sources are:
 
+* [Barrons](http://www.barrons.com)
+* [Benzinga](https://www.benzinga.com)
 * [Bloomberg](https://www.bloomberg.com)
-* [GoogleFinance](https://www.google.com/finance)
+* [BusinessInsider](http://www.businessinsider.com)
 * [Investing](https://www.investing.com)
 * [Investopedia](http://www.investopedia.com)
+* [Investorplace](http://investorplace.com)
+* [Zacks](https://www.zacks.com)
 * [MarketWatch](http://www.marketwatch.com)
 * [MotleyFool](http://motleyfool.com)
 * [MSN](http://www.msn.com/en-us/money)
@@ -49,6 +57,7 @@ tested to work for. The current list of verified and tested sources are:
 * [SeekingAlpha](http://seekingalpha.com)
 * [TheStreet](https://www.thestreet.com)
 * [YahooFinance](https://finance.yahoo.com)
+* [WSJ](https://www.wsj.com/europe)
 
 
 
