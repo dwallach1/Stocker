@@ -4,5 +4,5 @@
 old.py
 old/
 data/
-credentials.txt
+credentials.json
 TwitStock/node_modules/
