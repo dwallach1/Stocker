@@ -15,5 +15,7 @@
   "bugs": {
     "url": "https://github.com/dwallach1/Stocker/issues"
   },
-  "homepage": "https://github.com/dwallach1/Stocker#readme"
+  "homepage": "https://github.com/dwallach1/Stocker#readme",
+
+  "scripts": { "start": "node run.js"}
 }
