@@ -15,7 +15,7 @@ from nltk import word_tokenize
 from pytz import timezone
 from numpy.testing import assert_almost_equal
 from webparser import scrape, validate_url, str2date, get_sector_industry, classify
-from stocker import earnings_watcher
+from stocker import earnings_watcher, Stocker
 
 Test = namedtuple('Test', 'func status') # status {0,1} where 0 is failed, 1 is passed
 Link = namedtuple('Link', 'url source')
@@ -128,6 +128,18 @@ def get_sector_industry_test():
             return failed  
     return passed
 
+
+def cname_test():
+    passed, failed = Test('cname_test', 1), Test('cname_test', 0)
+    dm = Stocker(tickers, sources, csv_path=None, json_path=None)
+    dm.build_queries(depth = 2)
+    q2s = dm.queries[:,2]
+    for q in q2s:
+        print(q)
+
+
+
+
 def classify_test():    # also a dynamic test in some cases -- until we link to paid database
     passed, failed = Test('classify_test', 1), Test('classify_test', 0)
     Classifier = namedtuple('Classifier', 'ticker date status magnitude offset')
@@ -146,6 +158,8 @@ def classify_test():    # also a dynamic test in some cases -- until we link to 
                 if verbose: print ('classify_test: Wrong classification for stock: {} on date {} with offset {}'.format(c.ticker, c.date, c.offset))
                 return failed
     return passed
+
+
 
 """
 DYNAMIC URL TESTS
@@ -467,10 +481,11 @@ def main():
         global verbose
         verbose = True
     tests = [   
-                # valid_url_test(),
-                # str2date_test(), 
-                # get_sector_industry_test(), 
-                # classify_test(),
+                valid_url_test(),
+                str2date_test(), 
+                get_sector_industry_test(), 
+                classify_test(),
+                cname_test(),
     
     # # ---------DYNAMIC URL TESTS------------ # #
     

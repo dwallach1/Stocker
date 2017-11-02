@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*- 
 from __future__ import unicode_literals, print_function
 import re, logging, time
 from urlparse import urlparse
@@ -12,14 +14,17 @@ from bs4 import BeautifulSoup
 import dryscrape
 
 logger = logging.getLogger(__name__)
-GOOGLE_WAIT = 20
+logging.getLogger('requests').setLevel(logging.DEBUG)
+logging.getLogger('chardet.charsetprober').setLevel(logging.WARNING)
+
+GOOGLE_WAIT = 20 
 PriceChange = namedtuple('PriceChange', 'status magnitude')
 
 class RequestHandler():
 	"""handles making HTTP requests using request library"""
 	def get(self, url):
 		
-		# headers = {'User-Agent': 'Mozilla/5.0'}
+		#headers = {'User-Agent': 'Mozilla/5.0'}
 		headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_5) AppleWebKit/603.2.4 (KHTML, like Gecko) Version/10.1.1 Safari/603.2.4'}
 		try:
 			req = requests.get(url, headers=headers)
@@ -63,8 +68,12 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
 		flags[param] = kwargs[param]
 
 	url_obj = urlparse(url)
-	if not url_obj: return None
-	if not validate_url(url_obj, source, curious=flags['curious']): return None
+	if not url_obj: 
+		logger.warn('url_obj unable to parse url')
+		return None
+	if not validate_url(url_obj, source, curious=flags['curious']): 
+		logger.warn('validate_url returned false')
+		return None
 
 	# ONLY if needed: visit page and triggger JS -> capture html output as Soup object
 	# session = dryscrape.Session()
@@ -73,7 +82,9 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
 	# soup = BeautifulSoup(response, 'html.parser')
 
 	response = RequestHandler().get(url)
-	if response == None or response.status_code == 404: return None
+	if response == None or response.status_code == 404: 
+		logger.warn('Error getting content for {} -- NULL response or 404 status'.format(url))
+		return None
 	soup = BeautifulSoup(response.text, 'html.parser')
 	
 	# check url args
@@ -83,15 +94,20 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
    	# search for publishing date
    	wn_args = {'url':url}
 	pubdate = find_date(soup, source, path)
-	if pubdate == None and flags['date_checker']: return None
+	if pubdate == None and flags['date_checker']: 
+		logger.warn('publishing date flag checked and not able to parse date from html')
+		return None
 	wn_args['pubdate'] = pubdate
 
 	# search for article
 	article = find_article(soup, source, path)
 	wn_args['article'] = article
+	logger.debug('found article with length: {}'.format(len(article)))
 
 	# check words
-	if flags['length_checker'] and len(article.decode('utf-8').split(' ')) < min_length: return None
+	if flags['length_checker'] and len(article.decode('utf-8').split(' ')) < min_length: 
+		logger.warn('length_checker flag checked and article did not meet standards')
+		return None
 	
 	# handle indutry/sector parsing
 	if (flags['find_industry'] or flags['find_sector']) and ticker:

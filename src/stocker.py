@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*- 
 from __future__ import unicode_literals, print_function
 import os, sys, logging, json, string
 import random, time, csv, re
@@ -15,27 +17,33 @@ Query = namedtuple('Query', 'ticker source string')
                     
 class Stocker(object):
     """stocker class manages the work for mining data and writing it to disk"""
-    requestHandler = RequestHandler()
+    
+    
     def __init__(self, tickers, sources, csv_path, json_path):
         self.tickers = tickers
         self.sources = sources
         self.csv_path = csv_path
         self.json_path = json_path
         self.queries = []
+        self.requestHandler = RequestHandler()
 
     def build_queries(self, depth=1):
         """creates google queries based on the provided stocks and news sources"""
         i, j = 0, '.'
+        tot = len(self.tickers) * len(self.sources) * depth
         for t in self.tickers:
             for s in self.sources:
-                if verbose: sysprint('Building queries' + j*(i % 3))
+                #if verbose: sysprint('Building queries' + j*(i % 3))
+                if verbose: sysprint('Building {} out of {} queries | {} {} done'.format(i, tot, (i / tot), '%'))
                 i += 1
                 string1 = t + '+' + s + '+' + 'stock+articles'
                 if depth > 1:
                     cname = self.get_name(t) 
                     if not (cname is None):
-                        string2 =  '+'.join(map(lambda name: re.sub(r'[^\w\s]','',name), filter(lambda i: i != 'Inc.' ,cname.split(' ')))) + '+' + s + '+stock+news'
+                        garbage = ['Inc.']
+                        string2 =  '+'.join([i for i in cname.split(' ') if i not in garbage]) + '+' + s + '+stock+news'
                         self.queries.append(Query(t, s, string2))
+                        i += 1
                 self.queries.append(Query(t, s, string1))
         logger.debug('built {} queries'.format(len(self.queries)))
 
@@ -50,7 +58,7 @@ class Stocker(object):
             if data['symbol'] == ticker:
                 return data['name']
 
-    def stock(self, gui=True, json=True, csv=True, depth=1, query=True, shuffle=True, flags={}):
+    def stock(self, gui=True, json=True, csv=True, depth=1, query=True, shuffle=False, flags={}):
         """main function for the class. Begins the worker to get the information based on the queries given"""
         if query: self.build_queries(depth=depth)
         if shuffle: random.shuffle(self.queries)
@@ -76,10 +84,12 @@ class Stocker(object):
                 t.update()
 
             urls = self.get_urls(curr_q, json)
+            logger.debug('urls are {}'.format(urls))
             nodes, urls = self.build_nodes(curr_q, urls, flags=flags)
-            if not(nodes == None): node_dict = [dict(node) for node in nodes]
+            node_dict = None
+            if not nodes == None: node_dict = [dict(node) for node in nodes]
             if node_dict == None or len(node_dict) == 0: continue
-            if not (node_dict is None):
+            if not node_dict is None:
                 if csv:     self.write_csv(node_dict)
                 if json:    self.write_json(urls, curr_q.ticker)
         print('\n\nDone.')
@@ -95,7 +105,12 @@ class Stocker(object):
         soup = BeautifulSoup(req.content,'html.parser')
         reg = re.compile('.*&sa=')
         new_urls = []
-        for item in soup.find_all(attrs={'class' : 'g'}): new_urls.append(reg.match(item.a['href'][7:]).group()[:-4])
+        for item in soup.find_all('div', attrs={'class' : 'g'}): 
+            url = item.a['href'][7:] # offset to get rid of <a href=
+            if url:
+                if url[0] == '/': url = url[1:]
+                new_urls.append(url) 
+            # new_urls.append(reg.match(item.a['href'][7:]).group()[:-4])
         logger.debug('found {} links from the query'.format(len(new_urls)))
         if not json: return new_urls
         return self.remove_dups(new_urls, query.ticker)
@@ -211,6 +226,7 @@ def NASDAQ_Top100():
     return map(lambda stock: re.findall(r'\(.*?\)', stock.text)[0][1:-1], soup.find_all('td', attrs={'class': 'text'}))
 
 def valid_sources(): return ['bloomberg', 'seekingalpha', 'reuters', 'thestreet', 'investopedia']
+
 def querify(ticker, source, string): return Query(ticker, source, '+'.join(string.split(' ')))
 
 def googler(string):

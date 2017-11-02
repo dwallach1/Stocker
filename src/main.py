@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*- 
 """
 Main.py
 Author: David Wallach
@@ -19,18 +21,19 @@ def gather_data():
     
     nyse100, nasdaq100, snp500 = data['NYSE100'], data['NASDAQ100'], data['SNP500']
     other_stocks = ['AAPL', 'GOOG', 'GPRO', 'TSLA', 'APRN', 'FB', 'NVDA', 'SNAP', 'SPY', 'NFLX', 'AMZN', 'AMD']
-    #tickers = nyse100 + nasdaq100 + snp500 + other_stocks
+    tickers = nyse100 + nasdaq100 + snp500 + other_stocks
+    #sources = valid_sources()
     tickers = other_stocks
-    sources = ['seekingalpha', 'bloomberg', 'reuters']
+    sources = ['seekingalpha', 'bloomberg', 'reuters', 'businessinsider', 'investopedia']
 
     # tickers = ['APRN']
     # sources = ['bloomberg']
-    csv_path = "../data/examples.csv"
-    json_path = "../data/links.json"
+    csv_path = '../data/examples.csv'
+    json_path = '../data/links.json'
     # flags = {'date_checker': True, 'classification': True, 'magnitude': True}
-    flags = {'date_checker': True}
+    flags = {'date_checker': True, 'depth': 1}
     dm = Stocker(tickers, sources, csv_path, json_path)
-    dm.stock(depth=2, flags=flags)
+    dm.stock(shuffle=True, flags=flags)
 
 
 def init_logger():
