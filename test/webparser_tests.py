@@ -128,17 +128,15 @@ def get_sector_industry_test():
             return failed  
     return passed
 
-
 def cname_test():
     passed, failed = Test('cname_test', 1), Test('cname_test', 0)
+    tickers = ['AAPL', 'GOOG', 'GPRO', 'TSLA', 'NFLX', 'AMZN', 'AMD']  
+    sources = ['seekingalpha']  
     dm = Stocker(tickers, sources, csv_path=None, json_path=None)
     dm.build_queries(depth = 2)
-    q2s = dm.queries[:,2]
+    q2s = dm.queries[::2] #starting at index 2 (to get the cname query), get every second query
     for q in q2s:
         print(q)
-
-
-
 
 def classify_test():    # also a dynamic test in some cases -- until we link to paid database
     passed, failed = Test('classify_test', 1), Test('classify_test', 0)
@@ -481,11 +479,11 @@ def main():
         global verbose
         verbose = True
     tests = [   
-                valid_url_test(),
-                str2date_test(), 
-                get_sector_industry_test(), 
-                classify_test(),
-                cname_test(),
+                # valid_url_test(),
+                # str2date_test(),
+                # get_sector_industry_test(),
+                # classify_test(),
+                cname_test()
     
     # # ---------DYNAMIC URL TESTS------------ # #
     
@@ -494,16 +492,21 @@ def main():
                 # seekingalpha_test(),
                 # reuters_test(),
                 # investopedia_test(),
-                # thestreet_test(),
                 # marketwatch_test(),
+                # businessinsider_test()
+
+
+
+
+                # thestreet_test(),
                 # ##motelyfool_test(),
                 # ## wsj_test(),
                 # ## barrons_test(),
                 # ##zacks_test(),
                 # msn_test(),
-                investorplace_test()
+                # investorplace_test()
                 # benzinga_test(),
-                # businessinsider_test()
+                
             ]
     passed = 0
     for test in tests:

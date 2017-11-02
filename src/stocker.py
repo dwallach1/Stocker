@@ -41,7 +41,7 @@ class Stocker(object):
                     cname = self.get_name(t) 
                     if not (cname is None):
                         garbage = ['Inc.']
-                        string2 =  '+'.join([i for i in cname.split(' ') if i not in garbage]) + '+' + s + '+stock+news'
+                        string2 =  '+'.join([j for j in cname.split(' ') if j not in garbage]) + '+' + s + '+stock+news'
                         self.queries.append(Query(t, s, string2))
                         i += 1
                 self.queries.append(Query(t, s, string1))
@@ -61,7 +61,7 @@ class Stocker(object):
     def stock(self, gui=True, json=True, csv=True, depth=1, query=True, shuffle=False, flags={}):
         """main function for the class. Begins the worker to get the information based on the queries given"""
         if query: self.build_queries(depth=depth)
-        if shuffle: random.shuffle(self.queries)
+        if shuffle: random.shuffle(self.queries) # shuffule the queries to try to limit bot detection
         total = len(self.queries)
         if total == 0: return None
         trange_args = { 'total':            total, 
@@ -109,6 +109,7 @@ class Stocker(object):
             url = item.a['href'][7:] # offset to get rid of <a href=
             if url:
                 if url[0] == '/': url = url[1:]
+                if url[:4] != 'http': url = 'http://' + url # attach web protocol, if not there -- default to http
                 new_urls.append(url) 
             # new_urls.append(reg.match(item.a['href'][7:]).group()[:-4])
         logger.debug('found {} links from the query'.format(len(new_urls)))
@@ -142,8 +143,8 @@ class Stocker(object):
 
     def write_csv(self, node_dict):
         """writes the data gathered to a csv file"""
-        if verbose: sysprint('writing {} nodes to csv'.format(len(node_dict)))
-        logger.debug('writing {} nodes to csv '.format(len(node_dict)))
+        if verbose: sysprint('writing {} node(s) to csv'.format(len(node_dict)))
+        logger.debug('writing {} node(s) to csv '.format(len(node_dict)))
         write_mode = 'a' if os.path.exists(self.csv_path) else 'w'
         with open(self.csv_path, write_mode) as f:
             fieldnames = node_dict[0].keys() # sort to ensure they are the same order every time
@@ -154,8 +155,8 @@ class Stocker(object):
 
     def write_json(self, urls, ticker):
         """writes parsed links to JSON file to avoid reparsing"""
-        if verbose: sysprint('writing {} links to csv'.format(len(urls)))
-        logger.debug('writing {} links to csv'.format(len(urls)))
+        if verbose: sysprint('writing {} link(s) to json'.format(len(urls)))
+        logger.debug('writing {} link(s) to json'.format(len(urls)))
         write_mode = 'r' if os.path.exists(self.json_path) else 'w' 
         t = ticker.upper()
         with open(self.json_path, write_mode) as f:

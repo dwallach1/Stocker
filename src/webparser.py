@@ -17,13 +17,12 @@ logger = logging.getLogger(__name__)
 logging.getLogger('requests').setLevel(logging.DEBUG)
 logging.getLogger('chardet.charsetprober').setLevel(logging.WARNING)
 
-GOOGLE_WAIT = 20 
+GOOGLE_WAIT = 120 
 PriceChange = namedtuple('PriceChange', 'status magnitude')
 
 class RequestHandler():
 	"""handles making HTTP requests using request library"""
 	def get(self, url):
-		
 		#headers = {'User-Agent': 'Mozilla/5.0'}
 		headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_5) AppleWebKit/603.2.4 (KHTML, like Gecko) Version/10.1.1 Safari/603.2.4'}
 		try:
@@ -48,7 +47,7 @@ class WebNode(object):
     		for attr in attrs:
       			yield attr, getattr(self, attr)
 
-def scrape(url, source, ticker=None, min_length=30, **kwargs):
+def scrape(url, source, ticker, min_length=30, **kwargs):
 	"""
 	main parser function, initalizes WebNode and fills in the data
 	returns -> WebNode | list on success, None on error 
@@ -71,8 +70,8 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
 	if not url_obj: 
 		logger.warn('url_obj unable to parse url')
 		return None
-	if not validate_url(url_obj, source, curious=flags['curious']): 
-		logger.warn('validate_url returned false')
+	if not validate_url(url_obj, source, curious=flags['curious']) and flags['validate_url']: 
+		logger.warn('validate_url returned false for {}'.format(url))
 		return None
 
 	# ONLY if needed: visit page and triggger JS -> capture html output as Soup object
@@ -117,9 +116,9 @@ def scrape(url, source, ticker=None, min_length=30, **kwargs):
 
 	# handle classification process
 	if flags['classification'] and ticker and pubdate != None:	
-		class_ = classify(pubdate, ticker, offset=flags['offset'], squeeze=flags['squeeze'])
-		wn_args['classification'] = class_.status
-		if flags['magnitude']: wn_args['magnitude'] = class_.magnitude
+		classification = classify(pubdate, ticker, offset=flags['offset'], squeeze=flags['squeeze'])
+		wn_args['classification'] = classification.status
+		if flags['magnitude']: wn_args['magnitude'] = classification.magnitude
 
 	return WebNode(**wn_args)
 
@@ -130,7 +129,9 @@ def url_path(url_obj, source):
 	paths = url_obj.path.split('/')[1:] # first entry is '' so exclude it
 	return '+'.join(paths[:length[source]]).lower()
 
-def homepages(): return ['quote', 'symbol', 'finance', 'markets', 'investing', 'en-us+money']
+def homepages(): 
+	"""The containers associated to the valid homepages"""
+	return ['quote', 'symbol', 'finance', 'markets', 'investing', 'en-us+money']
 
 def validate_url(url_obj, source, curious=False):
 	"""
@@ -157,7 +158,9 @@ def get_sector_industry(ticker):
 	industry, sector = '', ''
 	google_url = 'https://www.google.com/finance?&q='+ticker
 	req = RequestHandler().get(google_url)
-	if req == None: return WebNode(url, pubdate, article, words, sentences, industry, sector)
+	if req == None: 
+		logger.warn('Find sector and/or industry flags checked -- Error finding sector and/or industry')
+		return None, None
 	
 	s = BeautifulSoup(req.text, 'html.parser')
 	container = s.find_all('a')
@@ -187,8 +190,6 @@ def find_date(soup, source, container):
 
 	key = '+'.join([source,container])
 
-	print ('key is {}'.format(key))
-	print ('ayy {}'.format('investorplace+'+str(now.year)))
 	container = {
 		'bloomberg+press-releases': soup.find('span', attrs={'class': 'date'}),
 		'bloomberg+news':			soup.find('time', attrs={'itemprop': 'datePublished'}),
@@ -274,8 +275,17 @@ def crawl_home_page(soup, ID, source):
 		# 'barrons':			''
 	}
 
-	if find and not dry: return [bases[source] + url['href'] for url in soups[source].find_all('a')]
-	if not (source in soups.keys()) or dry: return None
+	if find and not dry:
+		try: 
+			links = [bases[source] + url['href'] for url in soups[source].find_all('a')]
+		except AttributeError:
+			logger.warn('Unable to parse homepage for {}'.format(source))
+			return None
+		else:
+			return links 
+	if not (source in soups.keys()) or dry: 
+		logger.warn('Unable to parse homepage for {}'.format(source))
+		return None
 	return [bases[source] + url['href'] for url in soups[source]]
 	
 def classify(pubdate, ticker, interval=20, offset=10, squeeze=False):
