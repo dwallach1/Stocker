@@ -12,6 +12,7 @@ import dateutil.parser as dateparser
 import numpy as np
 from bs4 import BeautifulSoup 
 import dryscrape
+import chardet
 
 logger = logging.getLogger(__name__)
 logging.getLogger('requests').setLevel(logging.DEBUG)
@@ -91,7 +92,22 @@ def scrape(url, source, ticker, min_length=30, **kwargs):
 	if path in homepages(): return crawl_home_page(soup, path, source)
 
    	# search for publishing date
-   	wn_args = {'url':url}
+   	wn_args = {	'url': url, 
+   				'ticker': ticker, 
+   				'source': source, 
+   				't0': 0, 
+   				't2': 0,
+   				't4': 0, 
+   				't6': 0,
+   				't8': 0, 
+   				't10': 0,
+   				't12': 0,
+   				't14': 0, 
+   				't16': 0,
+   				't18': 0, 
+   				't20': 0
+   		}
+
 	pubdate = find_date(soup, source, path)
 	if pubdate == None and flags['date_checker']: 
 		logger.warn('publishing date flag checked and not able to parse date from html')
@@ -100,6 +116,7 @@ def scrape(url, source, ticker, min_length=30, **kwargs):
 
 	# search for article
 	article = find_article(soup, source, path)
+	logger.debug('article string format is {}'.format(chardet.detect(article)['encoding']))
 	wn_args['article'] = article
 	logger.debug('found article with length: {}'.format(len(article)))
 
@@ -234,12 +251,16 @@ def find_article(soup, source, container):
 	:param container: an html attribute to where dates are stored for valid sources
 	:type container: string
 	"""
+	# temporarily used to prevent error in writing csv 
+	# some of these links are breaking the csv writer function -- need to debug
+	if container == 'press-releases': return ''
+	
 	key = '+'.join([source, container])
 	offset = 	defaultdict(lambda: 0)
 	tag = 		defaultdict(lambda: 'p')
 	offset['bloomberg+news'] = 8
 	tag['bloomberg+press-releases'] = 'pre'
-	return ' '.join(map(lambda p: p.text.strip(), soup.find_all(tag[key])[offset[key]:])).encode('utf-8')
+	return ' '.join(map(lambda p: p.text.strip(), soup.find_all(tag[key])[offset[key]:])).encode('utf-8', 'ignore')
 
 def crawl_home_page(soup, ID, source):
 	"""

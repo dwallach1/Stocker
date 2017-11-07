@@ -19,11 +19,12 @@ class Stocker(object):
     """stocker class manages the work for mining data and writing it to disk"""
     
     
-    def __init__(self, tickers, sources, csv_path, json_path):
+    def __init__(self, tickers, sources, csv_path, json_path, stats_path=None):
         self.tickers = tickers
         self.sources = sources
         self.csv_path = csv_path
         self.json_path = json_path
+        self.stats_path = stats_path
         self.queries = []
         self.requestHandler = RequestHandler()
 
@@ -84,10 +85,13 @@ class Stocker(object):
                 t.update()
 
             urls = self.get_urls(curr_q, json)
+            if self.stats_path:  urls_found = len(urls)
             logger.debug('urls are {}'.format(urls))
-            nodes, urls = self.build_nodes(curr_q, urls, flags=flags)
+            nodes, urls, extra = self.build_nodes(curr_q, urls, flags=flags)
+            if self.stats_path: urls_found += extra
             node_dict = None
             if not nodes == None: node_dict = [dict(node) for node in nodes]
+            if self.stats_path: self.update_stocker_stats(urls_found, curr_q.source, len(node_dict))
             if node_dict == None or len(node_dict) == 0: continue
             if not node_dict is None:
                 if csv:     self.write_csv(node_dict)
@@ -128,18 +132,23 @@ class Stocker(object):
         """uses the urls to build WebNodes to be written to the csv output"""
         if len(urls) == 0: return None, []
         nodes = []
+        extra = 0
         j = '.'
         for i, url in enumerate(urls):
             if verbose: sysprint('parsing urls for query: {}'.format(query.string) + j*(i % 3))
             node = scrape(url, query.source, ticker=query.ticker, **flags)
             if isinstance(node, list):
-                urls += [url for url in node if not(url in urls)]
+                for url in node:
+                    if not (url in urls):
+                        urls.append(url)
+                        extra += 1
+                #urls += [url for url in node if not(url in urls)]
                 logger.debug('Hit landing page -- crawling for more links')
             elif node != None: nodes.append(node)
             else: urls.remove(url)
         if verbose: sysprint ('built {} nodes to write to disk'.format(len(nodes)))
         logger.debug('built {} nodes to write to disk'.format(len(nodes)))
-        return nodes, urls
+        return nodes, urls, extra
 
     def write_csv(self, node_dict):
         """writes the data gathered to a csv file"""
@@ -177,12 +186,42 @@ class Stocker(object):
         #write the updated json
         with open(self.json_path, 'w') as f: 
             json.dump(data, f, indent=4)
+
+
+    def update_stocker_stats(self, num_urls, source, num_nodes):
+        if verbose: sysprint('updating stocker_stats.json')
+        logger.debug('updating stocker_stats.json')
+        write_mode = 'r' if os.path.exists(self.stats_path) else 'w' 
+
+        with open(self.stats_path, write_mode) as f:
+            if write_mode == 'w': data = {}
+            else: data = json.load(f)
+
+        # add urls to json
+        if source in data.keys():
+            original = data[source] 
+
+            # error occuring here
+            updated = {}
+            updated['num_urls'] = original['num_urls'] + num_urls
+            updated['num_nodes'] = original['num_nodes'] + num_nodes
+            data.update({source : updated})
+        else: data.update({ source : {
+                            'num_urls': num_urls,
+                            'num_nodes': num_nodes
+                    }
+            })
+
+        #write the updated json
+        with open(self.stats_path, 'w') as f: 
+            json.dump(data, f, indent=4)
     
 # -----------------------
 #
 #   EXTERNAL FUNCTIONS
 #
 # -----------------------
+
 
 def sysprint(text):
     """moves cursor down one line -- prints over the current line -- then back up one line"""
