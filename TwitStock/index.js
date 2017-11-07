@@ -24,7 +24,7 @@ var TwitStocker = function(config) {
 
 	});
 
-	// look into this 
+	// make self reference the TwitStocker instance 
 	var self = this;
 
 	const call_delay = config.call_delay || 0;
