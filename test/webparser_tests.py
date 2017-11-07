@@ -4,6 +4,7 @@ import sys
 sys.path.append('/Users/david/Desktop/Stocker/src')
 import math
 import json
+import csv
 import argparse
 import re
 from collections import namedtuple
@@ -158,6 +159,41 @@ def classify_test():    # also a dynamic test in some cases -- until we link to 
     return passed
 
 
+def bloomberg_pr_error_test():
+    passed, failed = Test('bloomberg_pr_error_test', 1), Test('bloomberg_pr_error_test', 0)
+    url1 = 'https://www.bloomberg.com/press-releases/2017-11-01/gopro-announces-third-quarter-2017-results'
+    url2 = 'https://www.bloomberg.com/press-releases/2017-11-06/proassurance-reports-results-for-third-quarter-2017'
+    source = 'bloomberg'
+    flags = {
+                'date_checker': True, 
+                'depth': 1, 
+                'validate_url': False, 
+                'length_check': True,
+                'min_length': 100,            
+
+    }
+    web_node1 = scrape(url1, source, 'GPRO', flags)
+    #web_node2 = scrape(url2, source, 'AAPL', flags)
+
+    print (web_node1)
+    d_webnode1 = dict(web_node1)
+    print (d_webnode1.keys())
+    
+    print(d_webnode1['article'].split(' '))
+
+    # with open('../data/test.csv', 'w') as f:
+    #         fieldnames = d_webnode1.keys() # sort to ensure they are the same order every time
+    #         writer = csv.DictWriter(f, fieldnames=fieldnames)
+    #         writer.writeheader()
+    #         writer.writerows(d_webnode1)
+
+
+
+
+
+    #print (web_node2)
+
+    return passed
 
 """
 DYNAMIC URL TESTS
@@ -483,7 +519,9 @@ def main():
                 # str2date_test(),
                 # get_sector_industry_test(),
                 # classify_test(),
-                cname_test()
+                # cname_test(),
+                bloomberg_pr_error_test()
+
     
     # # ---------DYNAMIC URL TESTS------------ # #
     
