@@ -1,26 +1,22 @@
 'use strict';
-
 const unirest = require('unirest');
 const bluebird = require('bluebird');
 const Twit = require('twit');
 const events = require('events');
 
 
-const WAIT_PERIOD = 30*1000;	// 30 seconds
-
-
 // inspired from @KeithCollins botomoter twitbot
 // https://github.com/keithcollins/node-botometer
 
-var TwitStocker = function(config) {
+const TwitStocker = function(config) {
 
-	const T = new Twit({
-		consumer_key: 	 	 config.consumer_secret,
-		consumer_secret: 	 config.consumer_secret,
-		access_token: 	 	 config.access_token,
-		access_token_secret: config.access_token_secret,
-		app_only_auth: 		 config.app_only_auth,
-		timeout_ms:          config.timeout_ms
+	var T = new Twit({
+		consumer_key: 	 	 config.CONSUMER_KEY,
+		consumer_secret: 	 config.CONSUMER_SECRET,
+		access_token: 	 	 config.ACCESS_TOKEN,
+		access_token_secret: config.ACCESS_TOKEN_SECRET,
+		app_only_auth: 		 config.APP_ONLY_AUTH,
+		timeout_ms:          config.TIMEOUT_MS
 
 	});
 
@@ -47,16 +43,31 @@ var TwitStocker = function(config) {
 					if (err) console.log(err);
 
 					// otherwise do nothing
-
-				});
+					});
 			} else{
 				console.log(msg);
 			}
-	}
+		}
+	};
+
+
+	this.analyzeTweet = function analyzeTweet(screen_name, tweet) {
+
+		if (tweet.id > (this.lastTweet[screen_name] || 0)) {
+			self.lastTweet[screen_name] = tweet.id;
+
+			//emit the event that a new tweet was analyzed
+			tweet.screen_name = screen_name;
+			self.emit(screen_name, tweet.text);
+
+		}
+	};
 
 	this.pollSpawner = function pollSpawner(screen_name, interval) {
 		setInterval(function() {
+			console.log('beginning to poll worker')
 			self.pollWorker(screen_name)
+			console.log('finished polling worker')
 		}, interval);
 	};
 
@@ -75,43 +86,32 @@ var TwitStocker = function(config) {
 		}
 
 
-		this.T.get(path, options, function(err, data, response) {
-			if (err) log(err);
 
+		T.get(path, options, function(err, data, response) {
+			if (err) {
+				log(err);
+			}
 			else {
 				if (data.length) {
 					// analyze and store the tweet
-					this.analyzeTweet(screen_name, data[0])
+					self.analyzeTweet(screen_name, data[0])
 
 					//update last tweet
-					self.lastTweet[screen_name] = tweet.id;
+					self.lastTweet[screen_name] = data[0].id;
 
 				}
 			}
 		});
 	};
 
-	this.analyzeTweet = function analyzeTweet(screen_name, tweet) {
-
-		if (tweet.id > (this.lastTweet[screen_name] || 0)) {
-			self.lastTweet[screen_name] = tweet.id;
-
-			//emit the event that a new tweet was analyzed
-			tweet.screen_name = screen_name;
-			self.emit(screen_name, tweet, amount, );
-
-			//
-
-		}
-	};
-
-	//this.batchStock = function batchStock
 }
 
 // set up the event emmiter and start it
 TwitStocker.prototype = new events.EventEmitter;
 TwitStocker.prototype.start = function(screen_name, interval) {
 	this.pollSpawner(screen_name, interval);
-}
+};
 
+// make available to import from other modules
 module.exports = TwitStocker;
+
