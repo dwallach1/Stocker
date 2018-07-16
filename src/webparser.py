@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*- 
 from __future__ import unicode_literals, print_function
 import re, logging, time
-from urlparse import urlparse
+from urllib.parse import urlparse
 from collections import namedtuple, defaultdict
 import requests
 from datetime import datetime, timedelta, tzinfo
@@ -11,13 +11,15 @@ import pytz
 import dateutil.parser as dateparser
 import numpy as np
 from bs4 import BeautifulSoup 
-import dryscrape
+#import dryscrape
 import chardet
 
+# set logging configurations
 logger = logging.getLogger(__name__)
 logging.getLogger('requests').setLevel(logging.DEBUG)
 logging.getLogger('chardet.charsetprober').setLevel(logging.WARNING)
 
+# global declarations
 GOOGLE_WAIT = 120 
 PriceChange = namedtuple('PriceChange', 'status magnitude')
 
@@ -69,7 +71,7 @@ def scrape(url, source, ticker, min_length=30, **kwargs):
 
 	url_obj = urlparse(url)
 	if not url_obj: 
-		logger.warn('url_obj unable to parse url')
+		logger.warn('url_obj unable to parse url for url {}'.format(url))
 		return None
 	if not validate_url(url_obj, source, curious=flags['curious']) and flags['validate_url']: 
 		logger.warn('validate_url returned false for {}'.format(url))
@@ -91,38 +93,27 @@ def scrape(url, source, ticker, min_length=30, **kwargs):
 	path = url_path(url_obj, source)
 	if path in homepages(): return crawl_home_page(soup, path, source)
 
+	wn_args = {	'url': url, 'ticker': ticker, 'source': source }
    	# search for publishing date
-   	wn_args = {	'url': url, 
-   				'ticker': ticker, 
-   				'source': source, 
-   				't0': 0, 
-   				't2': 0,
-   				't4': 0, 
-   				't6': 0,
-   				't8': 0, 
-   				't10': 0,
-   				't12': 0,
-   				't14': 0, 
-   				't16': 0,
-   				't18': 0, 
-   				't20': 0
-   		}
-
 	pubdate = find_date(soup, source, path)
 	if pubdate == None and flags['date_checker']: 
-		logger.warn('publishing date flag checked and not able to parse date from html')
+		logger.warn('publishing date flag checked and not able to parse date from html for url {}'.format(url))
 		return None
 	wn_args['pubdate'] = pubdate
 
 	# search for article
 	article = find_article(soup, source, path)
-	logger.debug('article string format is {}'.format(chardet.detect(article)['encoding']))
+	try: logger.debug('article string format is {}'.format(chardet.detect(article)['encoding']))
+	except: logger.debug('article string format is not detectable')
+	
+	# replace non-ASCII values with a spce
+	article = re.sub(r'[^\x00-\x7F]+',' ', article)
 	wn_args['article'] = article
 	logger.debug('found article with length: {}'.format(len(article)))
 
 	# check words
 	if flags['length_checker'] and len(article.decode('utf-8').split(' ')) < min_length: 
-		logger.warn('length_checker flag checked and article did not meet standards')
+		logger.warn('length_checker flag checked and article did not meet standards for url {}'.format(url))
 		return None
 	
 	# handle indutry/sector parsing
@@ -253,7 +244,7 @@ def find_article(soup, source, container):
 	"""
 	# temporarily used to prevent error in writing csv 
 	# some of these links are breaking the csv writer function -- need to debug
-	if container == 'press-releases': return ''
+	#if container == 'press-releases': return 'not working rn'
 	
 	key = '+'.join([source, container])
 	offset = 	defaultdict(lambda: 0)
@@ -308,7 +299,10 @@ def crawl_home_page(soup, ID, source):
 		logger.warn('Unable to parse homepage for {}'.format(source))
 		return None
 	return [bases[source] + url['href'] for url in soups[source]]
-	
+
+
+# Currently not working due to Google changing their API
+# Google & Yahoo Finance have discountinued their intraday mintute stock data APIs	
 def classify(pubdate, ticker, interval=20, offset=10, squeeze=False):
 	"""
 	finds an associated classification based on the stock price fluctiation of the given ticker

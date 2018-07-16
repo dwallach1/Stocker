@@ -11,6 +11,8 @@ import logging, logging.handlers, json
 import requests
 from bs4 import BeautifulSoup
 from stocker import Stocker, SNP_500, NYSE_Top100, NASDAQ_Top100, valid_sources
+import os.path
+
 
 
 def gather_data():
@@ -23,9 +25,16 @@ def gather_data():
     other_stocks = ['AAPL', 'GOOG', 'GPRO', 'TSLA', 'APRN', 'FB', 'NVDA', 'SNAP', 'SPY', 'NFLX', 'AMZN', 'AMD']
     tickers = nyse100 + nasdaq100 + snp500 + other_stocks
     sources = valid_sources()
-    # tickers = other_stocks
-    tickers = ['AAPL', 'GPRO', 'TSLA']
-    # sources = ['seekingalpha', 'bloomberg', 'reuters', 'businessinsider', 'investopedia'] # businessinsider not working
+    tickers = other_stocks
+    
+
+    # used for testing 
+    stocks = ['AAPL', 'GPRO', 'TSLA']
+    stocks = other_stocks
+    #tickers = ['APRN', 'FB', 'NVDA', 'SNAP']
+    # businessinsider not working
+    sources = ['seekingalpha', 'bloomberg', 'reuters', 'investopedia', 'marketwatch', 'yahoofinance'] 
+    # 'businessinsider', 'googlefinance'
 
 
     csv_path = '../data/examples.csv'

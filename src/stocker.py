@@ -4,7 +4,7 @@ from __future__ import unicode_literals, print_function
 import os, sys, logging, json, string
 import random, time, csv, re
 from collections import namedtuple
-from urlparse import urlparse
+from urllib.parse import urlparse
 import requests
 from datetime import datetime
 from bs4 import BeautifulSoup 
@@ -94,7 +94,7 @@ class Stocker(object):
             if self.stats_path: self.update_stocker_stats(urls_found, curr_q.source, len(node_dict))
             if node_dict == None or len(node_dict) == 0: continue
             if not node_dict is None:
-                if csv:     self.write_csv(node_dict)
+                if csv:     self.write_csv(node_dict, curr_q)
                 if json:    self.write_json(urls, curr_q.ticker)
         print('\n\nDone.')
         if gui: t.close()
@@ -150,10 +150,10 @@ class Stocker(object):
         logger.debug('built {} nodes to write to disk'.format(len(nodes)))
         return nodes, urls, extra
 
-    def write_csv(self, node_dict):
+    def write_csv(self, node_dict, query):
         """writes the data gathered to a csv file"""
         if verbose: sysprint('writing {} node(s) to csv'.format(len(node_dict)))
-        logger.debug('writing {} node(s) to csv '.format(len(node_dict)))
+        logger.debug('writing {} node(s) to csv for query {}'.format(len(node_dict), query))
         write_mode = 'a' if os.path.exists(self.csv_path) else 'w'
         with open(self.csv_path, write_mode) as f:
             fieldnames = node_dict[0].keys() # sort to ensure they are the same order every time
