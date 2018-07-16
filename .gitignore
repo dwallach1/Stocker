@@ -7,3 +7,5 @@ old/
 data/
 credentials.json
 TwitStock/node_modules/
+TwitStock/config.js
+TwitStock/npm-debug.log
