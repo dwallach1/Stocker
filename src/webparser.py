@@ -423,7 +423,7 @@ def source_translation(name, host=True):
 		'benzinga':		'www.benzinga.com'
 
 	}
-	sources = {v: k for k, v in hosts.iteritems()}
+	sources = {v: k for k, v in hosts.items()}
 	#inv_map = {v: k for k, v in my_map.items()} python 3+ --> use when we upgrade
 	bucket = hosts if host else sources 
 	if not (name in bucket.keys()): return None

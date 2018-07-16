@@ -187,7 +187,6 @@ class Stocker(object):
         with open(self.json_path, 'w') as f: 
             json.dump(data, f, indent=4)
 
-
     def update_stocker_stats(self, num_urls, source, num_nodes):
         if verbose: sysprint('updating stocker_stats.json')
         logger.debug('updating stocker_stats.json')
