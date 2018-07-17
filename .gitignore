@@ -6,6 +6,6 @@ old.py
 old/
 data/
 credentials.json
-TwitStock/node_modules/
-TwitStock/config.js
-TwitStock/npm-debug.log
+TwitStocker/node_modules/
+TwitStocker/config.js
+TwitStocker/npm-debug.log
