@@ -1,0 +1,24 @@
+{
+  "name": "StockerBot",
+  "version": "1.0.0",
+  "description": "Twitter Bot to leveragethe Stocker API",
+  "main": "index.js",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dwallach1/Stocker.git"
+  },
+  "author": "David Wallach",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/dwallach1/Stocker/issues"
+  },
+  "homepage": "https://github.com/dwallach1/Stocker#readme",
+  "dependencies": {
+    "events": "^3.0.0",
+    "twit": "^2.2.11",
+    "unirest": "^0.5.1"
+  }
+}
