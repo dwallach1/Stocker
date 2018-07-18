@@ -1,15 +1,20 @@
 # Stocker
-A financial data scraper. Stocker generates google queries to get recent articles and parse them for information. 
+
+> Tesla's stock jumped 2.5% after Tencent said it amassed a 5% stake in the electric car maker. Ocwen jumped 12% premarket after disclosing it reached a deal with New York regulators that will end third-party monitoring of its business within the next three weeks. In addition, restrictions on buying mortgage-servicing rights may get eased.
+Cara Therapeutics's shares surged 16% premarket, after the biotech company reported positive results in a trial of a treatment for uremic pruritus.
+
+
+This project, Stocker, is at its core a financial data scraper. The Python package is itended to generate google queries to get recent articles and parse them for information. 
 All that stocker needs is a list of stock tickers and a list of sources (that correlate to domain names). To store the 
 information you can provide a csv path and to make sure you do not parse the same urls, you can provide a json path. 
 If you do not want one of these (or either), you can call stocker with the flags csv=False or json=False and leave the path
 parameters out when initalizing a Stocker instance. 
 
 
-"Tesla's stock jumped 2.5% after Tencent said it amassed a 5% stake in the electric car maker.
-Ocwen jumped 12% premarket after disclosing it reached a deal with New York regulators that will end third-party monitoring of its business within the next three weeks. In addition, restrictions on buying mortgage-servicing rights may get eased.
-Cara Therapeutics's shares surged 16% premarket, after the biotech company reported positive results in a trial of a treatment for uremic pruritus."
+Due to the closing of Google's and Yahoo's free daily stock price APIs, I decided to create a Twitter bot [StockerBot](https://github.com/dwallach1/StockerBot) that uses the Twitter platform to generate information pertaining to stocks on the user's watchlist. 
 
+
+### Example Usage (Python Package)
 
 ```python
 from stocker import Stocker
