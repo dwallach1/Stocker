@@ -1,1 +1,1 @@
-__all__ = ['stocker','webparser','finsent']
+__all__ = ['stocker','webparser']

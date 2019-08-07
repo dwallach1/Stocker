@@ -14,41 +14,18 @@ from bs4 import BeautifulSoup
 #import dryscrape
 import chardet
 
+from RequestService import RequestHandler
+from WebService import WebNode
+
 # set logging configurations
 logger = logging.getLogger(__name__)
-logging.getLogger('requests').setLevel(logging.DEBUG)
 logging.getLogger('chardet.charsetprober').setLevel(logging.WARNING)
+
 
 # global declarations
 GOOGLE_WAIT = 120 
 PriceChange = namedtuple('PriceChange', 'status magnitude')
 
-class RequestHandler():
-	"""handles making HTTP requests using request library"""
-	def get(self, url):
-		#headers = {'User-Agent': 'Mozilla/5.0'}
-		headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_5) AppleWebKit/603.2.4 (KHTML, like Gecko) Version/10.1.1 Safari/603.2.4'}
-		try:
-			req = requests.get(url, headers=headers)
-			if req.status_code == 503:
-				logger.warn('Request code of 503')
-				time.sleep(GOOGLE_WAIT)
-				req = requests.get(url, headers=headers)
-		except requests.exceptions.RequestException as e:
-			logger.error('RequestHandler GET Error: {}'.format(str(e)))
-			return None
-		else: return req
-
-class WebNode(object):
-	"""represents an entry in data.csv that will be used to train the sentiment classifier"""
-	def __init__(self, **kwargs):
-		for key, value in kwargs.items():
-      			setattr(self, key, value)
-	
-	def __iter__(self):
-    		attrs = [attr for attr in dir(self) if attr[:2] != '__']
-    		for attr in attrs:
-      			yield attr, getattr(self, attr)
 
 def scrape(url, source, ticker, min_length=30, **kwargs):
 	"""
@@ -83,7 +60,7 @@ def scrape(url, source, ticker, min_length=30, **kwargs):
 	# response = session.body()
 	# soup = BeautifulSoup(response, 'html.parser')
 
-	response = RequestHandler().get(url)
+	response, err = RequestHandler().get(url)
 	if response == None or response.status_code == 404: 
 		logger.warn('Error getting content for {} -- NULL response or 404 status'.format(url))
 		return None
@@ -94,7 +71,8 @@ def scrape(url, source, ticker, min_length=30, **kwargs):
 	if path in homepages(): return crawl_home_page(soup, path, source)
 
 	wn_args = {	'url': url, 'ticker': ticker, 'source': source }
-   	# search for publishing date
+   	
+	# search for publishing date
 	pubdate = find_date(soup, source, path)
 	if pubdate == None and flags['date_checker']: 
 		logger.warn('publishing date flag checked and not able to parse date from html for url {}'.format(url))
@@ -103,13 +81,15 @@ def scrape(url, source, ticker, min_length=30, **kwargs):
 
 	# search for article
 	article = find_article(soup, source, path)
-	try: logger.debug('article string format is {}'.format(chardet.detect(article)['encoding']))
-	except: logger.debug('article string format is not detectable')
+	logger.debug('{} -> article\'s length is {} characters'.format(url, len(article)))
+	try: logger.debug('article string encoding is {}'.format(chardet.detect(article)['encoding']))
+	except: logger.debug('article string encoding is not detectable')
 	
+	print ('\n\n', article)
 	# replace non-ASCII values with a spce
 	article = re.sub(r'[^\x00-\x7F]+',' ', article)
 	wn_args['article'] = article
-	logger.debug('found article with length: {}'.format(len(article)))
+	logger.debug('after cleaning, article has length: {}'.format(len(article)))
 
 	# check words
 	if flags['length_checker'] and len(article.decode('utf-8').split(' ')) < min_length: 
@@ -130,107 +110,11 @@ def scrape(url, source, ticker, min_length=30, **kwargs):
 
 	return WebNode(**wn_args)
 
-def url_path(url_obj, source):
-	length = defaultdict(lambda: 1)
-	length['msn'] = 2
-	length['zacks'] = 2
-	paths = url_obj.path.split('/')[1:] # first entry is '' so exclude it
-	return '+'.join(paths[:length[source]]).lower()
 
 def homepages(): 
 	"""The containers associated to the valid homepages"""
 	return ['quote', 'symbol', 'finance', 'markets', 'investing', 'en-us+money']
 
-def validate_url(url_obj, source, curious=False):
-	"""
-	basic url checking to save overhead
-	returns -> boolean
-	:param url_obj: the url in question
-	:type url_obj: urlparse object
-	:param souce: the source provided in the query
-	:type source: string
-	:param curious: determines if the function should check to see if the domain matches the source
-	:type curious: boolean
-	"""
-	valid_schemes = ['http', 'https']
-	if not url_obj.hostname: return False
-	return (url_obj.scheme in valid_schemes) and ((url_obj.hostname == source_translation(source)) or curious)
-
-def get_sector_industry(ticker):
-	"""
-	looks for the associated sector and industry of the stock ticker
-	returns -> two strings (first: industry, second: sector)
-	:param ticker: associated stock ticker to look up for the information
-	:type ticker: string
-	"""
-	industry, sector = '', ''
-	google_url = 'https://www.google.com/finance?&q='+ticker
-	req = RequestHandler().get(google_url)
-	if req == None: 
-		logger.warn('Find sector and/or industry flags checked -- Error finding sector and/or industry')
-		return None, None
-	
-	s = BeautifulSoup(req.text, 'html.parser')
-	container = s.find_all('a')
-	next_ = False
-	for a in container:
-		if next_: 
-			industry = a.text.strip()
-			break
-		if a.get('id') == 'sector': 
-			sector = a.text.strip()
-			next_ = True
-	return industry, sector
-
-def find_date(soup, source, container):
-	"""
-	parses a beautifulsoup object in search of a publishing date
-	returns -> datetime on success, None on error
-	:param soup: a beautifulsoup object
-	:param source: the source provided in the query
-	:type source: string
-	:param container: an html attribute to where dates are stored for valid sources
-	:type container: string
-	"""
-	tz = timezone('US/Eastern')
-	tz_utc = pytz.utc
-	now = datetime.now()
-
-	key = '+'.join([source,container])
-
-	container = {
-		'bloomberg+press-releases': soup.find('span', attrs={'class': 'date'}),
-		'bloomberg+news':			soup.find('time', attrs={'itemprop': 'datePublished'}),
-		'seekingalpha+article':		soup.find('time', attrs={'itemprop': 'datePublished'}),
-		'reuters+article':			soup.find('div', attrs={'class': 'ArticleHeader_date_V9eGk'}),
-		'investopedia+news':		soup.find('span', attrs={'class':'by-author'}),
-		'thestreet+story':			soup.find('time', attrs={'itemprop':'datePublished'}),
-		'yahoofinance+news': 		soup.find('time', attrs={'itemprop':'datePublished'}),
-		'marketwatch+story': 		soup.find('p', attrs={'id': 'published-timestamp'}),
-		'msn+en-us+news':			soup.find('time'),
-		'barrons+articles':			soup.find('meta', attrs={'itemprop': 'datePublished'}),
-		'investorplace+'+str(now.year): soup.find('span', attrs={'class': 'entry-date'}),
-		'benzinga+general':			soup.find('div', attrs={'class': 'article-date-wrap'})
-	}
-
-	keys = container.keys()
-	if key not in keys: return None
-	date_html = container[key]
-	if date_html == None: return None
-
-	if 	 key == 'bloomberg+press-releases': return dateparser.parse(date_html.text.strip(), fuzzy=True).astimezone(tz)
-	elif key == 'bloomberg+news':		 	return dateparser.parse(date_html['datetime'], fuzzy=True).astimezone(tz)
-	elif key ==	'seekingalpha+article':		return dateparser.parse(date_html['content'], fuzzy=True).astimezone(tz)
-	elif key ==	'reuters+article':			return tz_utc.localize(dateparser.parse(''.join(date_html.text.strip().split('/')[:2]), fuzzy=True)).astimezone(tz)
-	elif key ==	'investopedia+news':		return dateparser.parse(date_html.text.strip(), fuzzy=True)
-	elif key == 'thestreet+story':			return dateparser.parse(date_html['datetime'], fuzzy=True)
-	elif key == 'yahoofinance+news':		return dateparser.parse(date_html['datetime'], fuzzy=True).astimezone(tz)
-	elif key == 'marketwatch+story':		return dateparser.parse(date_html.text.strip(), fuzzy=True)
-	elif key == 'msn+en-us+news':			return dateparser.parse(date_html['datetime'], fuzzy=True).astimezone(tz)
-	elif key == 'barrons+articles':			return dateparser.parse(date_html['content'], fuzzy=True).astimezone(tz)
-	elif key == 'investorplace+'+str(now.year): return tz.localize(dateparser.parse(date_html.text.strip(), fuzzy=True))
-	elif key == 'benzinga+general': 		return tz.localize(dateparser.parse(date_html.text.strip(), fuzzy=True))
-	return None
 
 def find_article(soup, source, container):
 	"""
@@ -251,7 +135,10 @@ def find_article(soup, source, container):
 	tag = 		defaultdict(lambda: 'p')
 	offset['bloomberg+news'] = 8
 	tag['bloomberg+press-releases'] = 'pre'
-	return ' '.join(map(lambda p: p.text.strip(), soup.find_all(tag[key])[offset[key]:])).encode('utf-8', 'ignore')
+	article = ' '.join(map(lambda p: p.text.strip(), soup.find_all(tag[key])[offset[key]:])).encode('utf-8', 'ignore')
+	if not isinstance(article, str):
+		return article.decode()
+	return article
 
 def crawl_home_page(soup, ID, source):
 	"""
@@ -395,37 +282,5 @@ def str2date(datestr):
 	"""
 	return datetime.fromtimestamp(int(datestr), timezone('US/Eastern'))	 
 
-def source_translation(name, host=True):
-	"""
-	finds a correlating hostname or source for a name input
-	returns -> string on success, None on error
-	:param name: the full host name or the source name
-	:type name: string
-	:param host: tells which dict to use 
-	:type host: boolean
-	"""
-	hosts = {
-		'motleyfool': 	'www.fool.com',
-		'bloomberg': 	'www.bloomberg.com',
-		'seekingalpha': 'seekingalpha.com',
-		'yahoofinance': 'finance.yahoo.com',
-		'investopedia': 'www.investopedia.com',
-		'investing':	'www.investing.com',
-		'marketwatch': 	'www.marketwatch.com',
-		'googlefinance': 'www.google.com',
-		'reuters': 		'www.reuters.com',
-		'thestreet': 	'www.thestreet.com',
-		'msn':			'www.msn.com',
-		'wsj':			'www.wsj.com',
-		'barrons':		'www.barrons.com',
-		'zacks':		'www.zacks.com',
-		'investorplace':'investorplace.com',
-		'benzinga':		'www.benzinga.com'
 
-	}
-	sources = {v: k for k, v in hosts.items()}
-	#inv_map = {v: k for k, v in my_map.items()} python 3+ --> use when we upgrade
-	bucket = hosts if host else sources 
-	if not (name in bucket.keys()): return None
-	return bucket[name.lower()]
 
