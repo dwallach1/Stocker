@@ -29,6 +29,7 @@ class Stocker(object):
         self.requestHandler = RequestHandler()
         self.financeHelper = FinanceHelper()
         self.verbose = verbose
+        print ()
 
     def build_queries(self, depth=1):
         """creates google queries based on the provided stocks and news sources"""
@@ -84,9 +85,9 @@ class Stocker(object):
                 t.update()
 
             urls = self.get_urls(curr_q, json_output)
+            logger.debug('urls are {}'.format(json.dumps(urls, indent=4)))
             if self.stats_path:  
                 urls_found = len(urls)
-            logger.debug('urls are {}'.format(json.dumps(urls, indent=4)))
             
             nodes, urls, extra = self.build_nodes(curr_q, urls, flags=flags)
             
@@ -95,15 +96,24 @@ class Stocker(object):
 
             node_dict = [dict(node) for node in nodes] if (not nodes) else None
             if self.stats_path: 
-                self.update_stocker_stats(urls_found, curr_q.source, len(node_dict))
+                logger.debug('stats_path ({}) is set, updating statistics'.format(self.stats_path))
+                num_nodes = len(node_dict) if node_dict else 0
+                self.update_stocker_stats(urls_found, curr_q.source, num_nodes)
             
-            if node_dict == None or len(node_dict) == 0: continue
+            if node_dict == None or len(node_dict) == 0: 
+                logger.debug('Node Dictionary is None or has a length of 0, continuing to next iteration.')
+                continue
             
             if not node_dict is None:
-                if csv_output:     self.write_csv(node_dict, curr_q)
-                if json_output:    self.write_json(urls, curr_q.ticker)
-        
+                if self.csv_path:   
+                    logger.debug('csv_path ({}) is set, writitng node_dict to disk'.format(self.csv_path))  
+                    self.write_csv(node_dict, curr_q)
+                if self.json_path:   
+                    logger.debug('json_path ({}) is set, writitng node_dict to disk'.format(self.json_path))  
+                    self.write_json(urls, curr_q.ticker)
+                
                 print('\n\nFished gathering data, preparing to exit.')
+        utility.sysprint('Done.')
         if gui: t.close()
         return nodes
         
@@ -132,8 +142,11 @@ class Stocker(object):
     
     def remove_dups(self, urls, ticker):
         """removes already parsed urls from those found by get_urls"""
+        logger.debug('removing duplicate links')
         if not os.path.exists(self.json_path): 
+            logger.warn('tryed to remove duplicate links, but json_path ({}) did not exist'.format(self.json_path))
             return urls
+        logger.debug('opening file at json path: {}'.format(self.json_path))
         with open(self.json_path, 'r') as f:
             data = json.load(f)
         parsed_urls = data[ticker] if ticker in data else []
@@ -141,16 +154,16 @@ class Stocker(object):
 
     def build_nodes(self, query, urls, flags):
         """uses the urls to build WebNodes to be written to the csv output"""
-        if len(urls) == 0: 
-            return None, []
         nodes = []
         extra = 0
+        if len(urls) == 0: 
+            return nodes, urls, extra
         j = '.'
         for i, url in enumerate(urls):
             if self.verbose: 
                 utility.sysprint('parsing urls for query: {}'.format(query.string) + j*(i % 3))
             
-            articleParser = ArticleParser(url, source, **flags)
+            articleParser = ArticleParser(url, query.source, **flags)
             node = articleParser.generate_web_node()
             # node = scrape(url, query.source, ticker=query.ticker, **flags)
             
@@ -165,8 +178,8 @@ class Stocker(object):
             else: 
                 urls.remove(url)
         if self.verbose: 
-            utility.sysprint ('built {} nodes to write to disk'.format(len(nodes)))
-        logger.debug('built {} nodes to write to disk'.format(len(nodes)))
+            utility.sysprint ('built {} Web Nodes'.format(len(nodes)))
+        logger.debug('built {} Web Nodes'.format(len(nodes)))
         return nodes, urls, extra
 
     def write_csv(self, node_dict, query):
@@ -244,3 +257,10 @@ class Stocker(object):
         with open(self.stats_path, 'w') as f: 
             json.dump(data, f, indent=4)
     
+    def is_homepage(self, url, source):
+        """ """
+        regex_map = {
+            'bloomberg': r'bloomberg\.com\/quote\/[a-zA-Z]*:[a-zA-Z]*',
+            'yahoo':     r'finance\.yahoo\.com\/quote\/(.?)'
+        }
+        return bool(re.compile(regex_map[source]).search(url))

@@ -1,6 +1,5 @@
-import os
-
 import logging, logging.handlers
+
 from CrawlerService import Stocker
 from FinanceService import FinanceHelper
 import utility
@@ -20,10 +19,9 @@ def gather_data():
     # sources = ['seekingalpha', 'bloomberg', 'techcrunch', 'marketwatch'] # 'yahoofinance' 
     sources = ['bloomberg']
 
-    dir_path  = os.path.split(os.path.abspath(__file__))[0] + '/'
-    csv_path = dir_path + '../data/examples.csv'
-    json_path = dir_path + '../data/links.json'   
-    stats_path = dir_path + '../data/stocker_stats.json'
+    csv_path = 'data/examples.csv'
+    json_path = 'data/links.json'   
+    stats_path = 'data/stocker_stats.json'
     
     worker = Stocker(stocks, sources, csv_path, json_path, stats_path=stats_path)
 
@@ -36,11 +34,11 @@ def gather_data():
 
     }
     worker.stock(shuffle=True, flags=flags)
-    print ('Finished Process Successfully.')
+    print ('\n\nFinished Process Successfully.')
 
 def init_logger():
     """ init logger """
-    logging.basicConfig(filename='../data/output.log',
+    logging.basicConfig(filename='data/output.log',
                         filemode='w',
                         format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
                         datefmt='%H:%M:%S',

@@ -1,18 +1,24 @@
 from __future__ import unicode_literals, print_function
 
 import logging
+import warnings
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup 
 import datefinder
+from dateutil.parser._parser import UnknownTimezoneWarning
 
 
 from WebService import WebNode 
 from RequestService import RequestHandler
 import utility
 
+
+
 logger = logging.getLogger(__name__)
 logging.getLogger('chardet.charsetprober').setLevel(logging.WARNING)
+logging.getLogger('datefinder').setLevel(logging.WARNING)
 
+warnings.filterwarnings("ignore", category=UnknownTimezoneWarning)
 
 
 class ArticleParser(object):
@@ -40,10 +46,11 @@ class ArticleParser(object):
         
         soup = self.get_soup()
         
-        published_date = self.get_date(soup)
-        web_node_args['publishedDate'] = published_date
+        web_node_args['publishedDate'] = self.get_date(soup)
+        web_node_args['title'] = self.get_title(soup)
         
         webNode = WebNode(**web_node_args)
+        
         _ , err = self.validate_output(webNode)
         if err:
             return None, err
@@ -77,7 +84,7 @@ class ArticleParser(object):
     def validate_output(self, webNode):
         """ """
         e_type = 'Required Field Exception'
-        if not getattr(webNode, 'publishedDate', lambda: None)():
+        if not getattr(webNode, 'publishedDate', lambda: None):
             e = '{}: No Published Date Found'.format(e_type)
             logger.error(e)
             return False, e
@@ -92,7 +99,31 @@ class ArticleParser(object):
     
     def get_date(self, soup):
         """try to find an associated date of publishing"""
-        date_matches = list(datefinder.find_dates(soup.prettify()))
-        if len(date_matches):
-            return date_matches[0]
+        articles = soup.find_all('article')
+        article = None
+        if len(articles):
+            article = str(articles[0])
+
+        logger.debug('Found article to be of type {}'.format(type(article)))
+        # print(article)
+        if article:
+            date_matches = list(datefinder.find_dates(article))
+            if len(date_matches):
+                logger.debug('Date matches returned: {}'.format(date_matches[0]))
+                return date_matches[0]
+        logger.debug('Date matches returned: None.')
         return None
+
+    def get_title(self, soup):
+        """try to find an associated article title"""
+        title_path_config = {
+            'bloomberg': ('h1', {'class': 'lede-text-v2__hed'})
+        }
+        config = title_path_config[self.source]
+        tag, attribute = config[0], config[1]
+        titles = soup.find_all(tag, attribute)
+        title = None
+        if len(titles):
+            title = titles[0].getText()
+        logger.debug('Title matches returned: {}'.format(title))
+        return title
