@@ -8,9 +8,11 @@ import datefinder
 
 from WebService import WebNode 
 from RequestService import RequestHandler
-from HelperService import Helper
+import utility
 
 logger = logging.getLogger(__name__)
+logging.getLogger('chardet.charsetprober').setLevel(logging.WARNING)
+
 
 
 class ArticleParser(object):
@@ -27,7 +29,6 @@ class ArticleParser(object):
         self.url = url
         self.source = source
         self.requestHandler = RequestHandler()
-        self.helper = Helper()
         for key, value in kwargs.items():
             setattr(self, key, value)
         self.validate_request()
@@ -71,7 +72,7 @@ class ArticleParser(object):
             curious = getattr(self, 'curious')
         if not url_obj.hostname: 
             return False
-        return (url_obj.scheme in valid_schemes) and ((url_obj.hostname == self.helper.source_translation(self.source)) or curious)
+        return (url_obj.scheme in valid_schemes) and ((url_obj.hostname == utility.source_translation(self.source)) or curious)
     
     def validate_output(self, webNode):
         """ """
