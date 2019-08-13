@@ -105,12 +105,12 @@ class ArticleParser(object):
             article = str(articles[0])
 
         logger.debug('Found article to be of type {}'.format(type(article)))
-        # print(article)
+        
         if article:
             date_matches = list(datefinder.find_dates(article))
             if len(date_matches):
                 logger.debug('Date matches returned: {}'.format(date_matches[0]))
-                return date_matches[0]
+                return str(date_matches[0])
         logger.debug('Date matches returned: None.')
         return None
 

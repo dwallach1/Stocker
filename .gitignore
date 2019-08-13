@@ -1,13 +1,8 @@
 *.pyc
 *.txt
+*.log
 .idea
 .ipynb_checkpoints/
-old.py
 old/
 data/
-credentials.json
-StockerBot/node_modules/
-StockerBot/config.js
-StockerBot/npm-debug.log
-test/
 credentials.json

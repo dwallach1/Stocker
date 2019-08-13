@@ -85,7 +85,6 @@ def scrape(url, source, ticker, min_length=30, **kwargs):
 	try: logger.debug('article string encoding is {}'.format(chardet.detect(article)['encoding']))
 	except: logger.debug('article string encoding is not detectable')
 	
-	print ('\n\n', article)
 	# replace non-ASCII values with a spce
 	article = re.sub(r'[^\x00-\x7F]+',' ', article)
 	wn_args['article'] = article

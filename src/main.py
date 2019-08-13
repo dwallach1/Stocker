@@ -18,12 +18,8 @@ def gather_data():
     stocks = ['SAP']
     # sources = ['seekingalpha', 'bloomberg', 'techcrunch', 'marketwatch'] # 'yahoofinance' 
     sources = ['bloomberg']
-
-    csv_path = 'data/examples.csv'
-    json_path = 'data/links.json'   
-    stats_path = 'data/stocker_stats.json'
     
-    worker = Stocker(stocks, sources, csv_path, json_path, stats_path=stats_path)
+    worker = Stocker(stocks, sources)
 
     flags = {
                 'date_checker': False, 
@@ -38,7 +34,7 @@ def gather_data():
 
 def init_logger():
     """ init logger """
-    logging.basicConfig(filename='data/output.log',
+    logging.basicConfig(filename='output.log',
                         filemode='w',
                         format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
                         datefmt='%H:%M:%S',

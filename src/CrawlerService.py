@@ -1,10 +1,10 @@
 from __future__ import unicode_literals, print_function
 import os
+import subprocess
 import logging
 import json 
 import random
 import time
-import csv 
 import re
 from bs4 import BeautifulSoup 
 from tqdm import tqdm, trange
@@ -19,12 +19,23 @@ logger = logging.getLogger(__name__)
 class Stocker(object):
     """stocker class manages the work for mining data and writing it to disk"""
     
-    def __init__(self, tickers, sources, csv_path, json_path, stats_path=None, verbose=True):
+    def __init__(self, tickers, sources, verbose=True):
         self.tickers = tickers
         self.sources = sources
-        self.csv_path = csv_path
-        self.json_path = json_path
-        self.stats_path = stats_path
+
+        file_path = os.path.dirname(os.path.abspath(__file__))
+        proj_dir = os.path.dirname ( file_path )
+        data_dir_path = proj_dir + '/data/' 
+        if not os.path.isdir(data_dir_path):
+            initalize_cmd = subprocess.Popen(['make', 'clean'], 
+                                                stdout=subprocess.PIPE, 
+                                                stderr=subprocess.STDOUT)
+            initalize_cmd.communicate()
+
+        self.data_file = data_dir_path + 'data.json'
+        self.url_file = data_dir_path + 'urls.json'
+        self.stats_file = data_dir_path + 'stats.json'
+
         self.queries = []
         self.requestHandler = RequestHandler()
         self.financeHelper = FinanceHelper()
@@ -46,7 +57,7 @@ class Stocker(object):
                     if company_name:
                         garbage = ['Inc.']
                         string2 =  '+'.join([j for j in company_name.split(' ') if j not in garbage]) + '+' + s + '+stock+news'
-                        self.queries.append(Query(t, s, string2))
+                        self.queries.append(utility.Query(t, s, string2))
                         i += 1
                 self.queries.append(utility.Query(t, s, string1))
         logger.debug('built {} queries'.format(len(self.queries)))
@@ -84,39 +95,30 @@ class Stocker(object):
                 t.set_postfix(source=curr_q.source)
                 t.update()
 
-            urls = self.get_urls(curr_q, json_output)
+            urls = self.get_urls(curr_q)
+            urls_found = len(urls)
             logger.debug('urls are {}'.format(json.dumps(urls, indent=4)))
-            if self.stats_path:  
-                urls_found = len(urls)
             
             nodes, err = self.build_nodes(curr_q, urls, flags)
             if err:
                 logger.error('Error raised in node building phase: {}'.format(err))
+                continue
             nodes_normalized = [dict(node) for node in nodes] 
             
-            if self.stats_path: 
-                logger.debug('stats_path ({}) is set, updating statistics'.format(self.stats_path))
-                num_nodes = len(nodes_normalized) 
-                self.update_stocker_stats(urls_found, curr_q.source, num_nodes)
-            
-            if len(nodes_normalized):                 
-                if self.csv_path:   
-                    logger.debug('csv_path ({}) is set, writitng node_dict to disk'.format(self.csv_path))  
-                    self.write_csv(nodes_normalized, curr_q)
-                if self.json_path:   
-                    logger.debug('json_path ({}) is set, writitng node_dict to disk'.format(self.json_path))  
-                    self.write_json(urls, curr_q.ticker)
+            if len(nodes_normalized):   
+                self.update_stocker_stats(urls_found, curr_q.source, len(nodes_normalized))              
+                self.update_data_file(nodes_normalized, curr_q)
+                self.update_parsed_urls(urls, curr_q.ticker)
             else:
                 logger.debug('Node Dictionary is None or has a length of 0, continuing to next iteration.')
               
-            utility.sysprint('\n\nFished gathering data for query: {}'.format(curr_q.string))
+            utility.sysprint('Fished gathering data for query: {}'.format(curr_q.string))
         
-        utility.sysprint('Done.')
         if gui:
             t.close()
-        return nodes
+        return nodes_normalized
         
-    def get_urls(self, query, json_output):
+    def get_urls(self, query):
         """searches the query in google and returns the resulting urls"""
         url = 'https://www.google.co.in/search?site=&source=hp&q={}&gws_rd=ssl'.format(query.string)
         resp, err = self.requestHandler.get(url)
@@ -137,20 +139,15 @@ class Stocker(object):
         
         new_urls = [url for url in new_urls if self.is_of_source(url, query.source)]
         logger.debug('found {} links from the query'.format(len(new_urls)))
-        if not json_output: 
-            return new_urls
         return self.remove_dups(new_urls, query.ticker)
     
     def remove_dups(self, urls, ticker):
         """removes already parsed urls from those found by get_urls"""
         logger.debug('removing duplicate links')
-        if not os.path.exists(self.json_path): 
-            logger.warn('tryed to remove duplicate links, but json_path ({}) did not exist'.format(self.json_path))
-            return urls
-        logger.debug('opening file at json path: {}'.format(self.json_path))
-        with open(self.json_path, 'r') as f:
+        logger.debug('opening file at json path: {}'.format(self.url_file))
+        with open(self.url_file, 'r') as f:
             data = json.load(f)
-        parsed_urls = data[ticker] if ticker in data else []
+        parsed_urls = data[ticker] if ticker in data.keys() else []
         return [url for url in urls if not (url in parsed_urls)]    
 
     def build_nodes(self, query, urls, flags):
@@ -181,40 +178,38 @@ class Stocker(object):
 
         return [n for n in nodes if n], None
 
-    def write_csv(self, node_dict, query):
-        """writes the data gathered to a csv file"""
+    def update_data_file(self, nodes, query):
+        """writes the data gathered to a json file"""
         if self.verbose: 
-            utility.sysprint('writing {} node(s) to csv'.format(len(node_dict)))
-        logger.debug('writing {} node(s) to csv for query {}'.format(len(node_dict), query))
+            utility.sysprint('writing {} node(s) to {}'.format(len(nodes), self.data_file))
+        logger.debug('writing {} node(s) to {} for query {}'.format(len(nodes), self.data_file, query))
        
-        write_mode = 'a' if os.path.exists(self.csv_path) else 'w' 
-        with open(self.csv_path, write_mode) as f:
-            fieldnames = node_dict[0].keys() # sort to ensure they are the same order every time
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            if write_mode == 'w':
-                writer.writeheader()
-            writer.writerows(node_dict)
+        with open(self.data_file, 'r') as f:
+            data = json.load(f)
+        
+        for node in nodes:
+            key = '+'.join([query.ticker, query.source])
+            if key in data.keys():
+                sub_nodes = data[key]
+                sub_nodes.append(node)
+                data[key] = sub_nodes
+            else:
+                data[key] = [node]
+        
+        with open(self.data_file, 'w') as f: 
+            json.dump(data, f, indent=4)   
 
-    def write_json(self, urls, ticker):
+    def update_parsed_urls(self, urls, ticker):
         """writes parsed links to JSON file to avoid reparsing"""
         if self.verbose: 
-            utility.sysprint('writing {} link(s) to json'.format(len(urls)))
-        logger.debug('writing {} link(s) to json'.format(len(urls)))
+            utility.sysprint('writing {} link(s) to {}'.format(len(urls), self.url_file))
+        logger.debug('writing {} link(s) to {}'.format(len(urls), self.url_file))
         
         t = ticker.upper()
-        write_mode = 'r' if os.path.exists(self.json_path) else 'w' 
-        with open(self.json_path, write_mode) as f:
-            if write_mode == 'w': 
-                data = {}
-            else: 
-                data = json.load(f)
-        
-        # TODO : Build a is_homepage function to be used here
-        # remove homepages b/c we want to parse again
-        # urls = filter(lambda url: not (urlparse(url).path.split('/')[1].lower() in homepages()),
-        #        filter(lambda url: url[:4] == 'http', urls)) 
+        with open(self.url_file, 'r') as f:
+            data = json.load(f)
 
-        # add urls to json
+        # add urls to object
         if t in data.keys():
             original = data[t] 
             updated = original + urls 
@@ -222,20 +217,16 @@ class Stocker(object):
         else: 
             data.update({t : urls})
 
-        with open(self.json_path, 'w') as f: 
+        with open(self.url_file, 'w') as f: 
             json.dump(data, f, indent=4)
 
     def update_stocker_stats(self, num_urls, source, num_nodes):
         if self.verbose: 
-            utility.sysprint('updating stocker_stats.json')
-        logger.debug('updating stocker_stats.json')
+            utility.sysprint('updating stocker stats at {}'.format(self.stats_file))
+        logger.debug('updating stocker stats at {}'.format(self.stats_file))
         
-        write_mode = 'r' if os.path.exists(self.stats_path) else 'w' 
-        with open(self.stats_path, write_mode) as f:
-            if write_mode == 'w': 
-                data = {}
-            else: 
-                data = json.load(f)
+        with open(self.stats_file, 'r') as f:
+            data = json.load(f)
 
         # add urls to json
         if source in data.keys():
@@ -246,14 +237,15 @@ class Stocker(object):
             updated['num_urls'] = original['num_urls'] + num_urls
             updated['num_nodes'] = original['num_nodes'] + num_nodes
             data.update({source : updated})
-        else: data.update({ source : {
+        else: 
+            data.update({ source : {
                             'num_urls': num_urls,
                             'num_nodes': num_nodes
                     }
             })
 
         #write the updated json
-        with open(self.stats_path, 'w') as f: 
+        with open(self.stats_file, 'w') as f: 
             json.dump(data, f, indent=4)
     
     def is_homepage(self, url, source):

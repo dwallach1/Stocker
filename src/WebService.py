@@ -8,10 +8,4 @@ class WebNode(object):
 		attrs = [attr for attr in dir(self) if attr[:2] != '__']
 		for attr in attrs:
 			yield attr, getattr(self, attr)
-			  
-	def __dict__(self):
-		""" """
-		return {
-			'publishedDate': 	self.publishedDate,
-			'title': 			self.title
-		}
+			
