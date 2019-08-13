@@ -89,12 +89,10 @@ class Stocker(object):
             if self.stats_path:  
                 urls_found = len(urls)
             
-            nodes, urls, extra = self.build_nodes(curr_q, urls, flags=flags)
+            nodes = self.build_nodes(curr_q, urls, flags=flags)
             
-            if self.stats_path: 
-                urls_found += extra
-
             node_dict = [dict(node) for node in nodes] if (not nodes) else None
+            
             if self.stats_path: 
                 logger.debug('stats_path ({}) is set, updating statistics'.format(self.stats_path))
                 num_nodes = len(node_dict) if node_dict else 0
@@ -133,8 +131,10 @@ class Stocker(object):
             if url:
                 if url[0] == '/': url = url[1:]
                 if url[:4] != 'http': url = 'http://' + url # attach web protocol, if not there -- default to http
+                
                 new_urls.append(url) 
         
+        new_urls = [url for url in new_urls if self.is_of_source(url, query.source)]
         logger.debug('found {} links from the query'.format(len(new_urls)))
         if not json_output: 
             return new_urls
@@ -163,24 +163,18 @@ class Stocker(object):
             if self.verbose: 
                 utility.sysprint('parsing urls for query: {}'.format(query.string) + j*(i % 3))
             
+            if self.is_homepage(url, query.source):
+                logger.debug('Hit a homepage ({}) ... continuing to next iteration.'.format(url))
+                continue
+
             articleParser = ArticleParser(url, query.source, **flags)
             node = articleParser.generate_web_node()
-            # node = scrape(url, query.source, ticker=query.ticker, **flags)
+            nodes.append(node)
             
-            if isinstance(node, list):
-                for url in node:
-                    if not (url in urls):
-                        urls.append(url)
-                        extra += 1
-                logger.debug('Hit landing page -- crawling for more links')
-            elif node != None: 
-                nodes.append(node)
-            else: 
-                urls.remove(url)
         if self.verbose: 
             utility.sysprint ('built {} Web Nodes'.format(len(nodes)))
         logger.debug('built {} Web Nodes'.format(len(nodes)))
-        return nodes, urls, extra
+        return nodes
 
     def write_csv(self, node_dict, query):
         """writes the data gathered to a csv file"""
@@ -264,3 +258,15 @@ class Stocker(object):
             'yahoo':     r'finance\.yahoo\.com\/quote\/(.?)'
         }
         return bool(re.compile(regex_map[source]).search(url))
+
+    def is_of_source(self, url, source):
+        """ """
+        SOURCE_REGEX = r'www\.(.*)\.com'
+        match = re.search(SOURCE_REGEX, url, re.IGNORECASE)
+        if not match: 
+            logger.warn('Unable to find a match to test if valid source... Returning False blindly.')
+            return False
+        res = (source == match.group(1))
+        if not res:
+            logger.debug('url: {} was found to be of an incorrect source (expected: {}, found: {})... filtering out url.'.format(url, source, match.group(1)))
+        return res
