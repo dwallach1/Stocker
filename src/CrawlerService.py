@@ -89,30 +89,31 @@ class Stocker(object):
             if self.stats_path:  
                 urls_found = len(urls)
             
-            nodes = self.build_nodes(curr_q, urls, flags=flags)
-            
-            node_dict = [dict(node) for node in nodes] if (not nodes) else None
+            nodes, err = self.build_nodes(curr_q, urls, flags)
+            if err:
+                logger.error('Error raised in node building phase: {}'.format(err))
+            nodes_normalized = [dict(node) for node in nodes] 
             
             if self.stats_path: 
                 logger.debug('stats_path ({}) is set, updating statistics'.format(self.stats_path))
-                num_nodes = len(node_dict) if node_dict else 0
+                num_nodes = len(nodes_normalized) 
                 self.update_stocker_stats(urls_found, curr_q.source, num_nodes)
             
-            if node_dict == None or len(node_dict) == 0: 
-                logger.debug('Node Dictionary is None or has a length of 0, continuing to next iteration.')
-                continue
-            
-            if not node_dict is None:
+            if len(nodes_normalized):                 
                 if self.csv_path:   
                     logger.debug('csv_path ({}) is set, writitng node_dict to disk'.format(self.csv_path))  
-                    self.write_csv(node_dict, curr_q)
+                    self.write_csv(nodes_normalized, curr_q)
                 if self.json_path:   
                     logger.debug('json_path ({}) is set, writitng node_dict to disk'.format(self.json_path))  
                     self.write_json(urls, curr_q.ticker)
-                
-                print('\n\nFished gathering data, preparing to exit.')
+            else:
+                logger.debug('Node Dictionary is None or has a length of 0, continuing to next iteration.')
+              
+            utility.sysprint('\n\nFished gathering data for query: {}'.format(curr_q.string))
+        
         utility.sysprint('Done.')
-        if gui: t.close()
+        if gui:
+            t.close()
         return nodes
         
     def get_urls(self, query, json_output):
@@ -131,7 +132,7 @@ class Stocker(object):
             if url:
                 if url[0] == '/': url = url[1:]
                 if url[:4] != 'http': url = 'http://' + url # attach web protocol, if not there -- default to http
-                
+
                 new_urls.append(url) 
         
         new_urls = [url for url in new_urls if self.is_of_source(url, query.source)]
@@ -155,9 +156,9 @@ class Stocker(object):
     def build_nodes(self, query, urls, flags):
         """uses the urls to build WebNodes to be written to the csv output"""
         nodes = []
-        extra = 0
         if len(urls) == 0: 
-            return nodes, urls, extra
+            logger.debug('Build nodes found no (new) urls to parse (query: {})'.format(query.string))
+            return nodes, None
         j = '.'
         for i, url in enumerate(urls):
             if self.verbose: 
@@ -168,13 +169,17 @@ class Stocker(object):
                 continue
 
             articleParser = ArticleParser(url, query.source, **flags)
-            node = articleParser.generate_web_node()
+            node, err = articleParser.generate_web_node()
+            if err:
+                logger.error('Error generating node for {} ... aborting node building phase.')
+                return [], err
             nodes.append(node)
             
         if self.verbose: 
             utility.sysprint ('built {} Web Nodes'.format(len(nodes)))
         logger.debug('built {} Web Nodes'.format(len(nodes)))
-        return nodes
+
+        return [n for n in nodes if n], None
 
     def write_csv(self, node_dict, query):
         """writes the data gathered to a csv file"""
@@ -264,7 +269,7 @@ class Stocker(object):
         SOURCE_REGEX = r'www\.(.*)\.com'
         match = re.search(SOURCE_REGEX, url, re.IGNORECASE)
         if not match: 
-            logger.warn('Unable to find a match to test if valid source... Returning False blindly.')
+            logger.warn('Unable to find a match to test if valid source... Returning False blindly for {}'.format(url))
             return False
         res = (source == match.group(1))
         if not res:

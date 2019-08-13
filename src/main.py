@@ -33,7 +33,7 @@ def gather_data():
                 'min_length': 100,            
 
     }
-    worker.stock(shuffle=True, flags=flags)
+    worker.stock(flags=flags)
     print ('\n\nFinished Process Successfully.')
 
 def init_logger():
