@@ -4,7 +4,8 @@ import re
 from bs4 import BeautifulSoup
 
 from RequestService import RequestHandler
-import utility 
+import UtilityService as utility
+ 
 
 logger = logging.getLogger(__name__)
 

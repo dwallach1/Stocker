@@ -12,7 +12,7 @@ from tqdm import tqdm, trange
 from RequestService import RequestHandler
 from FinanceService import FinanceHelper
 from ArticleService import ArticleParser
-import utility 
+import UtilityService as utility
 
 logger = logging.getLogger(__name__)
                     

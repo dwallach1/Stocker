@@ -2,7 +2,7 @@ import logging, logging.handlers
 
 from CrawlerService import Stocker
 from FinanceService import FinanceHelper
-import utility
+import UtilityService as utility
 
 def gather_data():
     """call financial web scraping API with user defined parameters"""
