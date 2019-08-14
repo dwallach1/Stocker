@@ -44,10 +44,13 @@ class ArticleParser(object):
         """ Driver Function """
         web_node_args = {}
         
-        soup = self.get_soup()
+        soup, err = self.get_soup()
+        if err:
+            return None, err
         
         web_node_args['publishedDate'] = self.get_date(soup)
         web_node_args['title'] = self.get_title(soup)
+        web_node_args['source'] = self.source
         
         webNode = WebNode(**web_node_args)
         
@@ -94,8 +97,10 @@ class ArticleParser(object):
         """Get URL's content and store it in a BeautfulSoup object"""
         resp, err = self.requestHandler.get(self.url)
         if err:
-            logger.err('Error getting URL contents: {}\nSkipping rest of process.', err) 
-        return BeautifulSoup(resp.text, 'html.parser')
+            e = 'Error getting URL contents: {}\nSkipping rest of process.'.format(err)
+            logger.error(e) 
+            return None, e
+        return BeautifulSoup(resp.text, 'html.parser'), None
     
     def get_date(self, soup):
         """try to find an associated date of publishing"""
@@ -107,17 +112,20 @@ class ArticleParser(object):
         logger.debug('Found article to be of type {}'.format(type(article)))
         
         if article:
-            date_matches = list(datefinder.find_dates(article))
-            if len(date_matches):
-                logger.debug('Date matches returned: {}'.format(date_matches[0]))
-                return str(date_matches[0])
-        logger.debug('Date matches returned: None.')
+            date_matches = datefinder.find_dates(article)
+            try:
+                date_match = next(date_matches)
+                logger.debug('Date matches returned: {}'.format(date_match))
+                return str(date_match)
+            except StopIteration:
+                logger.debug('Date matches returned: None.')
         return None
 
     def get_title(self, soup):
         """try to find an associated article title"""
         title_path_config = {
-            'bloomberg': ('h1', {'class': 'lede-text-v2__hed'})
+            'bloomberg':        ('h1', {'class': 'lede-text-v2__hed'}),
+            'seekingalpha':     ('title', {})
         }
         config = title_path_config[self.source]
         tag, attribute = config[0], config[1]

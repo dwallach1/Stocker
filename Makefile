@@ -11,3 +11,6 @@ clean:
 
 run:
 	python3 src/main.py
+
+test:
+	python3 tests/CrawlerService_test.py

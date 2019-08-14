@@ -9,17 +9,18 @@ def gather_data():
     
     # financeHelper = FinanceHelper()
     # nyse100, nasdaq100, snp500 = financeHelper.get_nyse_top_100(), financeHelper.get_nasdaq_top_100(),financeHelper.get_snp_500()
-    # other_stocks = ['AAPL', 'GOOG', 'GPRO', 'TSLA', 'APRN', 'FB', 'NVDA', 'SNAP', 'SPY', 'NFLX', 'AMZN', 'AMD']
+    other_stocks = ['AAPL', 'GOOG', 'GPRO', 'TSLA', 'APRN', 'FB', 'NVDA', 'SNAP', 'SPY', 'NFLX', 'AMZN', 'AMD']
     # tickers = nyse100 + nasdaq100 + snp500 + other_stocks
     # sources = utility.valid_sources()
     
 
     # used for testing 
+    # stocks = ['SAP'] + other_stocks
     stocks = ['SAP']
     # sources = ['seekingalpha', 'bloomberg', 'techcrunch', 'marketwatch'] # 'yahoofinance' 
-    sources = ['bloomberg']
+    sources = ['seekingalpha', 'bloomberg'] 
     
-    worker = Stocker(stocks, sources)
+    worker = Stocker(stocks, sources, configpath='credentials.json')
 
     flags = {
                 'date_checker': False, 

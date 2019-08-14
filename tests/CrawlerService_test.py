@@ -8,7 +8,7 @@ sys.path.append(dir_path + '/src')
 from CrawlerService import Stocker
 
 # initalize dummy worker
-worker = Stocker(None, None, None, None)
+worker = Stocker(None, None, None)
 
 
 def is_homepage_test():
@@ -33,8 +33,8 @@ def is_of_source_test():
     cases = [
         ({'url': 'http://www.bloomberg.com/quote/SAP:US',   'source': 'bloomberg'}, True),
         ({'url': 'http://www.bloomberg.com/quote/SAP:GR',   'source': 'bloomberg'}, True),
-        ({'url': 'http://www.marketwatch.bloomberg.com/quote/SAP2:GR',  'source': 'marketwatch'}, False),
-        ({'url': 'http://www.bloomberg.com/quotes/SAP:GR',  'source': 'yahoo'}, False),        
+        ({'url': 'http://www.bloomberg.com/quotes/SAP:GR',  'source': 'yahoo'}, False),   
+        ({'url': 'http://seekingalpha.com/article/4243142-sap-growth-without-limit-growing-dividend',  'source': 'seekingalpha'}, True),         
     ]
 
     for c in cases:

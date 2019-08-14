@@ -3,7 +3,6 @@ import os
 import subprocess
 import logging
 import json 
-import random
 import time
 import re
 from bs4 import BeautifulSoup 
@@ -12,6 +11,7 @@ from tqdm import tqdm, trange
 from RequestService import RequestHandler
 from FinanceService import FinanceHelper
 from ArticleService import ArticleParser
+from QualtricsService import QualtricsHandler
 import UtilityService as utility
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class Stocker(object):
     """stocker class manages the work for mining data and writing it to disk"""
     
-    def __init__(self, tickers, sources, verbose=True):
+    def __init__(self, tickers, sources, configpath, verbose=True):
         self.tickers = tickers
         self.sources = sources
 
@@ -35,8 +35,12 @@ class Stocker(object):
         self.data_file = data_dir_path + 'data.json'
         self.url_file = data_dir_path + 'urls.json'
         self.stats_file = data_dir_path + 'stats.json'
-
         self.queries = []
+        self.use_qualtrics = bool(configpath)
+        if self.use_qualtrics:
+            with open(configpath, 'r') as f:
+                secrets = json.load(f)
+            self.qualtricsHandler = QualtricsHandler(secrets['Q_TOKEN'], secrets['Q_DATACENTER'], secrets['Q_SURVEY_ID'])
         self.requestHandler = RequestHandler()
         self.financeHelper = FinanceHelper()
         self.verbose = verbose
@@ -102,13 +106,12 @@ class Stocker(object):
             nodes, err = self.build_nodes(curr_q, urls, flags)
             if err:
                 logger.error('Error raised in node building phase: {}'.format(err))
-                continue
-            nodes_normalized = [dict(node) for node in nodes] 
+
             
-            if len(nodes_normalized):   
-                self.update_stocker_stats(urls_found, curr_q.source, len(nodes_normalized))              
-                self.update_data_file(nodes_normalized, curr_q)
-                self.update_parsed_urls(urls, curr_q.ticker)
+            if len(nodes):   
+                self.update_stocker_stats(urls_found, curr_q.source, len(nodes))              
+                self.update_data_file(nodes, curr_q)
+                self.update_parsed_urls(urls, curr_q)
             else:
                 logger.debug('Node Dictionary is None or has a length of 0, continuing to next iteration.')
               
@@ -116,7 +119,7 @@ class Stocker(object):
         
         if gui:
             t.close()
-        return nodes_normalized
+        return nodes
         
     def get_urls(self, query):
         """searches the query in google and returns the resulting urls"""
@@ -127,7 +130,6 @@ class Stocker(object):
             return None
 
         soup = BeautifulSoup(resp.content,'html.parser')
-        # reg = re.compile('.*&sa=')
         new_urls = []
         for item in soup.find_all('div', attrs={'class' : 'g'}): 
             url = item.a['href'][7:] # offset to get rid of <a href=
@@ -168,15 +170,15 @@ class Stocker(object):
             articleParser = ArticleParser(url, query.source, **flags)
             node, err = articleParser.generate_web_node()
             if err:
-                logger.error('Error generating node for {} ... aborting node building phase.')
-                return [], err
+                logger.error('unable to generate node for {} ... continuing to next iteration'.format(url))
+                continue
             nodes.append(node)
             
         if self.verbose: 
             utility.sysprint ('built {} Web Nodes'.format(len(nodes)))
         logger.debug('built {} Web Nodes'.format(len(nodes)))
 
-        return [n for n in nodes if n], None
+        return nodes, None
 
     def update_data_file(self, nodes, query):
         """writes the data gathered to a json file"""
@@ -188,34 +190,44 @@ class Stocker(object):
             data = json.load(f)
         
         for node in nodes:
+            self.qualtricsHandler.submit_node(node)
             key = '+'.join([query.ticker, query.source])
             if key in data.keys():
                 sub_nodes = data[key]
-                sub_nodes.append(node)
+                sub_nodes.append(dict(node))
                 data[key] = sub_nodes
             else:
-                data[key] = [node]
+                data[key] = [dict(node)]
         
         with open(self.data_file, 'w') as f: 
             json.dump(data, f, indent=4)   
 
-    def update_parsed_urls(self, urls, ticker):
+    def update_parsed_urls(self, urls, query):
         """writes parsed links to JSON file to avoid reparsing"""
         if self.verbose: 
             utility.sysprint('writing {} link(s) to {}'.format(len(urls), self.url_file))
         logger.debug('writing {} link(s) to {}'.format(len(urls), self.url_file))
         
-        t = ticker.upper()
+        ticker, source = query.ticker.upper(), query.source.lower()
         with open(self.url_file, 'r') as f:
             data = json.load(f)
 
         # add urls to object
-        if t in data.keys():
-            original = data[t] 
-            updated = original + urls 
-            data.update({t : updated})
+        if ticker in data.keys():
+            if source in data[ticker].keys():
+                original = data[ticker][source] 
+                updated = original + urls 
+                data[ticker].update({source : updated})
+            else:
+                data[ticker].update({source : urls})
+
         else: 
-            data.update({t : urls})
+            sub_obj = {
+                ticker: {
+                    source: urls
+                }
+            }
+            data.update(sub_obj)
 
         with open(self.url_file, 'w') as f: 
             json.dump(data, f, indent=4)
@@ -252,18 +264,15 @@ class Stocker(object):
         """ """
         regex_map = {
             'bloomberg': r'bloomberg\.com\/quote\/[a-zA-Z]*:[a-zA-Z]*',
-            'yahoo':     r'finance\.yahoo\.com\/quote\/(.?)'
+            'yahoo':     r'finance\.yahoo\.com\/quote\/(.?)',
+            'seekingalpha': r'seekingalpha\.com\/symbol\/[a-zA-Z]*'
         }
         return bool(re.compile(regex_map[source]).search(url))
 
     def is_of_source(self, url, source):
         """ """
-        SOURCE_REGEX = r'www\.(.*)\.com'
-        match = re.search(SOURCE_REGEX, url, re.IGNORECASE)
-        if not match: 
-            logger.warn('Unable to find a match to test if valid source... Returning False blindly for {}'.format(url))
-            return False
-        res = (source == match.group(1))
-        if not res:
-            logger.debug('url: {} was found to be of an incorrect source (expected: {}, found: {})... filtering out url.'.format(url, source, match.group(1)))
-        return res
+        candidates = url.split("://")[1].split("/")[0].split('.')
+        for c  in candidates:
+            if c == source: 
+                return True
+        return False
