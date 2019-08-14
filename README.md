@@ -5,16 +5,33 @@ Cara Therapeutics's shares surged 16% premarket, after the biotech company repor
 
 
 This project, Stocker, is at its core a financial data scraper. The Python package is itended to generate google queries to get recent articles and parse them for information. 
-All that stocker needs is a list of stock tickers and a list of sources (that correlate to domain names). To store the 
-information you can provide a csv path and to make sure you do not parse the same urls, you can provide a json path. 
-If you do not want one of these (or either), you can call stocker with the flags csv=False or json=False and leave the path
-parameters out when initalizing a Stocker instance. 
-
+All that stocker needs is a list of stock tickers and a list of sources (that correlate to domain names).
 
 Due to the closing of Google's and Yahoo's free daily stock price APIs, I decided to create a Twitter bot [StockerBot](https://github.com/dwallach1/StockerBot) that uses the Twitter platform to generate information pertaining to stocks on the user's watchlist. 
 
 
-### Example Usage (Python Package)
+
+Recently, I moved away from the original implementation in the current version because the code was not modularized and the intention of the project ran into roadblocks due to lack of access to historical financial data to build a usable financial sentiment classifier. Furthermore, the open-source ones I found online tended to perform far too poorly to provide any insights. 
+
+I have thus moved the direction of this project to be more of a brand tracker which I go more into depth [here](#V2.0). 
+
+If you want to use the older version, you can still do so by following the directions [here](#V1.0).
+
+
+## V2.0
+
+
+
+## V1.0
+
+Once you clone this repo, you will need to checkout the proper branch
+
+```
+git checkout origin v1.0
+```
+
+
+### Example Usage 
 
 ```python
 from stocker import Stocker
