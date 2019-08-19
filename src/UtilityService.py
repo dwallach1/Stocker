@@ -46,7 +46,9 @@ def source_translation(name, host=True):
     return bucket[name.lower()]
 
 def valid_sources(): 
-    return ['bloomberg', 'seekingalpha', 'reuters', 'thestreet', 'investopedia']
+    """returns a list of sources which this project has been optimized for"""
+    return ['bloomberg', 'seekingalpha']
+    # return ['bloomberg', 'seekingalpha', 'reuters', 'thestreet', 'investopedia']
 
 
     

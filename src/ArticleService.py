@@ -31,10 +31,12 @@ class ArticleParser(object):
         5. Converts it into a WebNode and returns the WebNode
     """
     
-    def __init__(self, url, source, **kwargs):
+    def __init__(self, url, query, company_info, **kwargs):
         self.url = url
-        self.source = source
+        self.source = query.source.lower()
+        self.ticker = query.ticker.upper()
         self.requestHandler = RequestHandler()
+        self.company_info = company_info
         for key, value in kwargs.items():
             setattr(self, key, value)
         self.validate_request()
@@ -51,6 +53,10 @@ class ArticleParser(object):
         web_node_args['publishedDate'] = self.get_date(soup)
         web_node_args['title'] = self.get_title(soup)
         web_node_args['source'] = self.source
+        web_node_args['url'] = self.url
+        web_node_args['ticker'] = self.ticker
+        for key, value in self.company_info.items():
+            web_node_args[key] = value
         
         webNode = WebNode(**web_node_args)
         
@@ -104,19 +110,28 @@ class ArticleParser(object):
     
     def get_date(self, soup):
         """try to find an associated date of publishing"""
-        articles = soup.find_all('article')
-        article = None
-        if len(articles):
-            article = str(articles[0])
+        date_path_config = {
+            'reuters': ('div', {'class': 'ArticleHeader_date'})
+        }
 
-        logger.debug('Found article to be of type {}'.format(type(article)))
+        if self.source in date_path_config.keys():
+            config = date_path_config[self.source]
+            tag, attribute = config[0], config[1]
+            date_holder = soup.find_all(tag, attribute)
+        else:
+            date_holder = soup.find_all('article')
+        date_string = None
+        if len(date_holder):
+            date_string = str(date_holder[0])
+
+        logger.debug('Found article to be of type {}'.format(type(date_string)))
         
-        if article:
-            date_matches = datefinder.find_dates(article)
+        if date_string:
+            date_matches = datefinder.find_dates(date_string)
             try:
                 date_match = next(date_matches)
                 logger.debug('Date matches returned: {}'.format(date_match))
-                return str(date_match)
+                return date_match.strftime("%Y-%m-%d")
             except StopIteration:
                 logger.debug('Date matches returned: None.')
         return None
@@ -125,7 +140,8 @@ class ArticleParser(object):
         """try to find an associated article title"""
         title_path_config = {
             'bloomberg':        ('h1', {'class': 'lede-text-v2__hed'}),
-            'seekingalpha':     ('title', {})
+            'seekingalpha':     ('title', {}),
+            'reuters':          ('h1', {'class': 'ArticleHeader_headline'})
         }
         config = title_path_config[self.source]
         tag, attribute = config[0], config[1]

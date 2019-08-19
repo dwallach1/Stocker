@@ -1,11 +1,10 @@
 import requests
-# from proxy_requests import ProxyRequests
 import logging
 import time
 
 
 GOOGLE_WAIT = 120 
-OK = lambda status: (status == '200 OK' or status == requests.codes.ok)
+OK = lambda status: (status == '200 OK' or status == '200 - OK' or status == requests.codes.ok)
 
 logger = logging.getLogger(__name__)
 logging.getLogger("requests").setLevel(logging.WARNING)

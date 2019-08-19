@@ -17,7 +17,15 @@ def is_homepage_test():
         ({'url': 'http://www.bloomberg.com/quote/SAP:GR',   'source': 'bloomberg'}, True),
         ({'url': 'http://www.bloomberg.com/quote/SAP',      'source': 'bloomberg'}, False),
         ({'url': 'http://www.bloomberg.com/quote/SAP2:GR',  'source': 'bloomberg'}, False),
-        ({'url': 'http://www.bloomberg.com/quotes/SAP:GR',  'source': 'bloomberg'}, False),        
+        ({'url': 'http://www.bloomberg.com/quotes/SAP:GR',  'source': 'bloomberg'}, False), 
+        ({'url': 'https://www.reuters.com/finance/stocks/overview/SAP', 'source': 'reuters'}, True),   
+        ({'url': 'https://www.reuters.com/finance/stocks/company-news/SAP', 'source': 'reuters'}, True),  
+        ({'url': 'https://www.reuters.com/article/us-sap-results/sap-says-big-margin-gains-to-wait-until-2020-shares-down-10-idUSKCN1UD0F8', 'source': 'reuters'}, False),  
+        ({'url': 'https://www.reuters.com/finance/stocks/analyst/SAP', 'source': 'reuters'}, True),  
+        ({'url': 'https://www.reuters.com/finance/stocks/chart/SAPG.DE', 'source': 'reuters'}, True),  
+        ({'url': 'https://www.reuters.com/finance/stocks/companyProfile/SAPG.DE', 'source': 'reuters'}, True),  
+
+
     ]
 
     for c in cases:
@@ -35,6 +43,7 @@ def is_of_source_test():
         ({'url': 'http://www.bloomberg.com/quote/SAP:GR',   'source': 'bloomberg'}, True),
         ({'url': 'http://www.bloomberg.com/quotes/SAP:GR',  'source': 'yahoo'}, False),   
         ({'url': 'http://seekingalpha.com/article/4243142-sap-growth-without-limit-growing-dividend',  'source': 'seekingalpha'}, True),         
+        ({'url': 'https://www.reuters.com/finance/stocks/overview/SAP', 'source': 'reuters'}, True)
     ]
 
     for c in cases:

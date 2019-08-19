@@ -70,8 +70,7 @@ class Stocker(object):
         """main function for the class. Begins the worker to get the information based on the queries given"""
         if query: 
             self.build_queries(depth=depth)
-        if shuffle: 
-            random.shuffle(self.queries) # shuffule the queries to try to limit bot detection
+        
         total = len(self.queries)
         if total == 0: 
             return None
@@ -89,33 +88,33 @@ class Stocker(object):
         else: t = range(total) 
        
         for i in t:
-            curr_q = self.queries[i]
+            query = self.queries[i]
             if self.verbose: 
-                utility.sysprint('Processing query: {}'.format(curr_q.string))
-            logger.debug('Processing query: {}'.format(curr_q.string))
+                utility.sysprint('Processing query: {}'.format(query.string))
+            logger.debug('Processing query: {}'.format(query.string))
             
             if gui:
-                t.set_description(curr_q.ticker.upper())
-                t.set_postfix(source=curr_q.source)
+                t.set_description(query.ticker.upper())
+                t.set_postfix(source=query.source)
                 t.update()
 
-            urls = self.get_urls(curr_q)
+            urls = self.get_urls(query)
             urls_found = len(urls)
             logger.debug('urls are {}'.format(json.dumps(urls, indent=4)))
             
-            nodes, err = self.build_nodes(curr_q, urls, flags)
+            nodes, err = self.build_nodes(query, urls, flags)
             if err:
                 logger.error('Error raised in node building phase: {}'.format(err))
 
             
             if len(nodes):   
-                self.update_stocker_stats(urls_found, curr_q.source, len(nodes))              
-                self.update_data_file(nodes, curr_q)
-                self.update_parsed_urls(urls, curr_q)
+                self.update_stocker_stats(urls_found, query.source, len(nodes))              
+                self.update_data_file(nodes, query)
+                self.update_parsed_urls(urls, query)
             else:
                 logger.debug('Node Dictionary is None or has a length of 0, continuing to next iteration.')
               
-            utility.sysprint('Fished gathering data for query: {}'.format(curr_q.string))
+            utility.sysprint('Fished gathering data for query: {}'.format(query.string))
         
         if gui:
             t.close()
@@ -159,6 +158,10 @@ class Stocker(object):
             logger.debug('Build nodes found no (new) urls to parse (query: {})'.format(query.string))
             return nodes, None
         j = '.'
+        company_info, err = self.financeHelper.get_company_info(query.ticker)
+        if err:
+            company_info = {}
+            logger.error('Error getting company information for {}'.format(query.ticker))
         for i, url in enumerate(urls):
             if self.verbose: 
                 utility.sysprint('parsing urls for query: {}'.format(query.string) + j*(i % 3))
@@ -166,8 +169,8 @@ class Stocker(object):
             if self.is_homepage(url, query.source):
                 logger.debug('Hit a homepage ({}) ... continuing to next iteration.'.format(url))
                 continue
-
-            articleParser = ArticleParser(url, query.source, **flags)
+            
+            articleParser = ArticleParser(url, query, company_info, **flags)
             node, err = articleParser.generate_web_node()
             if err:
                 logger.error('unable to generate node for {} ... continuing to next iteration'.format(url))
@@ -261,16 +264,28 @@ class Stocker(object):
             json.dump(data, f, indent=4)
     
     def is_homepage(self, url, source):
-        """ """
+        """Checks to see if it is a homepage for the source. A homepage is not an article, but rather an overview of a stock"""
         regex_map = {
-            'bloomberg': r'bloomberg\.com\/quote\/[a-zA-Z]*:[a-zA-Z]*',
-            'yahoo':     r'finance\.yahoo\.com\/quote\/(.?)',
-            'seekingalpha': r'seekingalpha\.com\/symbol\/[a-zA-Z]*'
+            'bloomberg':    r'bloomberg\.com\/quote\/[a-zA-Z]*:[a-zA-Z]*',
+            'yahoo':        r'finance\.yahoo\.com\/quote\/(.?)',
+            'seekingalpha': r'seekingalpha\.com\/symbol\/[a-zA-Z]*',
+            'reuters':      [   r'reuters\.com\/finance/stocks/overview\/[a-zA-Z]*',
+                                r'reuters\.com\/finance\/stocks\/company-news\/[a-zA-Z]*',
+                                r'reuters\.com\/finance\/stocks\/companyProfile\/[a-zA-Z]*',
+                                r'reuters\.com\/finance\/stocks\/analyst\/[a-zA-Z]*',
+                                r'reuters\.com\/finance\/stocks\/chart\/[a-zA-Z]*' ]
         }
-        return bool(re.compile(regex_map[source]).search(url))
+        if source in regex_map.keys():  
+            if isinstance(regex_map[source], list):
+                for r in regex_map[source]:
+                    if bool(re.compile(r).search(url)):
+                        return True
+                return False
+            return bool(re.compile(regex_map[source]).search(url))
+        return False
 
     def is_of_source(self, url, source):
-        """ """
+        """Checks to see if the url is from the intended source"""
         candidates = url.split("://")[1].split("/")[0].split('.')
         for c  in candidates:
             if c == source: 
