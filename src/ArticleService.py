@@ -111,7 +111,12 @@ class ArticleParser(object):
     def get_date(self, soup):
         """try to find an associated date of publishing"""
         date_path_config = {
-            'reuters': ('div', {'class': 'ArticleHeader_date'})
+            'bloomberg':    ('article', {}),
+            'seekingalpha': ('article', {}),
+            'reuters': ('div', {'class': 'ArticleHeader_date'}),
+            'thestreet': ('time', {'title': 'Last Publish Date'}),
+            'investopedia': ('div', {'id': 'displayed-date_1-0'}),
+            'wsj':  ('time', {})
         }
 
         if self.source in date_path_config.keys():
@@ -119,12 +124,13 @@ class ArticleParser(object):
             tag, attribute = config[0], config[1]
             date_holder = soup.find_all(tag, attribute)
         else:
-            date_holder = soup.find_all('article')
+            date_holder = [soup]
+
         date_string = None
         if len(date_holder):
             date_string = str(date_holder[0])
 
-        logger.debug('Found article to be of type {}'.format(type(date_string)))
+        logger.debug('Found date_string to be of type {}'.format(type(date_string)))
         
         if date_string:
             date_matches = datefinder.find_dates(date_string)
@@ -141,7 +147,10 @@ class ArticleParser(object):
         title_path_config = {
             'bloomberg':        ('h1', {'class': 'lede-text-v2__hed'}),
             'seekingalpha':     ('title', {}),
-            'reuters':          ('h1', {'class': 'ArticleHeader_headline'})
+            'reuters':          ('h1', {'class': 'ArticleHeader_headline'}),
+            'thestreet':        ('h1', {'class': 'article__headline'}),
+            'investopedia':     ('h1', {'id': 'article-heading_2-0'}),
+            'wsj':              ('h1', {'class': 'wsj-article-headline'})
         }
         config = title_path_config[self.source]
         tag, attribute = config[0], config[1]
@@ -150,4 +159,6 @@ class ArticleParser(object):
         if len(titles):
             title = titles[0].getText()
         logger.debug('Title matches returned: {}'.format(title))
-        return title
+        if title:
+            return ' '.join(title.split())
+        return None

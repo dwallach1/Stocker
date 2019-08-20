@@ -45,10 +45,7 @@ def source_translation(name, host=True):
     if not (name in bucket.keys()): return None
     return bucket[name.lower()]
 
-def valid_sources(): 
+def get_valid_sources(): 
     """returns a list of sources which this project has been optimized for"""
-    return ['bloomberg', 'seekingalpha']
-    # return ['bloomberg', 'seekingalpha', 'reuters', 'thestreet', 'investopedia']
-
-
-    
+    # investopedia is optimized, but cannot find date --> opened issue: https://github.com/akoumjian/datefinder/issues/113
+    return ['bloomberg', 'seekingalpha', 'reuters', 'thestreet', 'wsj']

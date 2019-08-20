@@ -32,7 +32,6 @@ class FinanceHelper(object):
         tickers = []
         for row in table.findAll('tr'):
             col = row.findAll('td')
-            print (col)
             if len(col):
                 ticker = str(col[0].get_text().strip())
                 tickers.append(ticker)
@@ -46,7 +45,7 @@ class FinanceHelper(object):
             utility.sysprint('Loading NYSE')
         page = 1    
         tickers = []
-        while page < 4: #64
+        while page < 64: #64
             url = 'https://www.nasdaq.com/screening/companies-by-industry.aspx?exchange=NYSE&page={}'.format(page)
             if self.verbose:
                 utility.sysprint('getting url: {}'.format(url))
@@ -80,16 +79,12 @@ class FinanceHelper(object):
         
         tickers = []
         soup = BeautifulSoup(resp.content, 'html.parser')
-        print(soup.find('table'))
         rows = soup.find_all('td')
-        print (rows)
         for row in rows:
             a = row.find('a')
-            print (a)
             if a:
                 ticker = re.findall(r'\(.*\)', a.get_text()).replace('(', '')
                 tickers.append(ticker)
-        print (tickers)
         if self.verbose: utility.sysprint('Finished loading stock movers')
         return list(tickers)
 

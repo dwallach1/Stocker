@@ -99,6 +99,10 @@ class Stocker(object):
                 t.update()
 
             urls = self.get_urls(query)
+            if not urls:
+                logger.debug('No URLs found.')
+                continue
+                
             urls_found = len(urls)
             logger.debug('urls are {}'.format(json.dumps(urls, indent=4)))
             
@@ -273,7 +277,8 @@ class Stocker(object):
                                 r'reuters\.com\/finance\/stocks\/company-news\/[a-zA-Z]*',
                                 r'reuters\.com\/finance\/stocks\/companyProfile\/[a-zA-Z]*',
                                 r'reuters\.com\/finance\/stocks\/analyst\/[a-zA-Z]*',
-                                r'reuters\.com\/finance\/stocks\/chart\/[a-zA-Z]*' ]
+                                r'reuters\.com\/finance\/stocks\/chart\/[a-zA-Z]*' ],
+            'thestreet':    r'thestreet\.com\/quote\/[a-zA-Z]*'
         }
         if source in regex_map.keys():  
             if isinstance(regex_map[source], list):
