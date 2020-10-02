@@ -4,7 +4,7 @@
 Cara Therapeutics's shares surged 16% premarket, after the biotech company reported positive results in a trial of a treatment for uremic pruritus.
 
 
-This project, Stocker, is at its core a financial data scraper. The Python package is itended to generate google queries to get recent articles and parse them for information. 
+This project, Stocker, is at its core a financial data scraper. The Python package is intended to generate google queries to get recent articles and parse them for information. 
 All that stocker needs is a list of stock tickers and a list of sources (that correlate to domain names).
 
 Due to the closing of Google's and Yahoo's free daily stock price APIs, I decided to create a Twitter bot [StockerBot](https://github.com/dwallach1/StockerBot) that uses the Twitter platform to generate information pertaining to stocks on the user's watchlist. 
